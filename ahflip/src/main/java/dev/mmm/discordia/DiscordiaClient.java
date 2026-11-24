@@ -103,6 +103,10 @@ public final class DiscordiaClient implements ClientModInitializer {
         Thread ticker = new Thread(this::tickLoop, "discordia-ticker");
         ticker.setDaemon(true);
         ticker.start();
+        // Announce the moment a scan publishes, instead of waiting for the next pulse. This is what
+        // keeps a new listing off the pulse's worst-case delay; the pulse stays as the purse refresh
+        // and as a safety net if this callback is ever dropped.
+        MARKET.setUpdateListener(() -> dispatch(this::pulse));
     }
 
     /**
@@ -385,6 +389,7 @@ public final class DiscordiaClient implements ClientModInitializer {
                 .append(Component.literal("  " + (includeNonBin ? "BIN + non-BIN" : "BIN only")
                         + "  |  purse " + (purse > 0d ? coins(purse) : "waiting"))
                         .withStyle(ChatFormatting.GRAY)));
+        statusRow(minecraft, "tick", MARKET.tickerHealth());
         statusRow(minecraft, "feed", MARKET.status()
                 + (age < 0 ? "  |  tick waiting" : "  |  tick " + age + "s"));
         statusRow(minecraft, "flips", bin + " BIN" + (includeNonBin ? "  |  " + snipes + " non-BIN" : ""));

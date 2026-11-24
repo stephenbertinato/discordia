@@ -38,7 +38,7 @@ cd ahflip
 
 The first build downloads the Minecraft client and the required compile-time libraries into
 `.tooling/` and `libs/`; those directories are gitignored. The finished mod is written to
-`ahflip/build/libs/discordia-1.2.0.jar`.
+`ahflip/build/libs/discordia-1.3.0.jar`.
 
 Install it in the `.minecraft/mods` directory of a Fabric 26.2 profile. There is no Fabric API
 dependency.
@@ -63,7 +63,15 @@ exit** — the ask after a 1.5% drift/relist reserve, and never above the realiz
 five sales to measure one — and an item whose expected hold exceeds the horizon (7 days, 3 for a
 book-only flip) is suppressed as a capital trap rather than shown with a large headline.
 `/discordia status` reports a `why` row with the top rejection reasons for the last scan, so an
-empty feed can be told apart from a broken one.
+empty feed can be told apart from a broken one, and a `tick` row with the measured tick period,
+the drift and the poll counts.
+
+## Latency
+
+The auction dump republishes on a **60,000 ms** tick, and every auction created in a tick lands on
+page 0 (over one tick: 130 of 130 new listings). `MarketTicker` measures that period and polls the
+172 KB heartbeat hard only in the ~1.2 s around the predicted boundary, so a new listing reaches
+chat **148–167 ms** after the tick, at about 130 MB/hour instead of 300 MB/hour.
 
 See [`ahflip/README.md`](ahflip/README.md#conservative-exit-hold-horizon-and-why-nothing-was-shown)
 for the full model, the reason codes and the remaining limits.

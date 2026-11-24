@@ -131,10 +131,8 @@ public final class FlipConfig {
     /** Optional SkyCofl newest-auction lane; the normal scan remains the fallback. */
     public boolean fastAuctions = true;
     /**
-     * How often the cheap heartbeat endpoint is polled, in ms. It is ~68 KB, so polling it every
-     * 2 s costs about 2 MB an hour and is what bounds how quickly a new auction tick is noticed.
-     * This interval alone does not make you first: Hypixel publishes no listing before its own
-     * market tick, and every player polling the same endpoint sees it at the same moment.
+     * Superseded: the scan loop now sleeps for {@link MarketTicker#nextDelayMs}, which polls hard
+     * only around the predicted 60 s tick. Kept so an older saved settings file still loads.
      */
     public long scanIntervalMs = 2_000L;
     /** Safety net: force a full auction dump this often even if the tick looks unchanged. */

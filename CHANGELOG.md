@@ -1,5 +1,58 @@
 # Changelog
 
+## 1.3.0 — 2026-11-24
+
+### Sub-second delivery, measured at 148–167 ms
+
+Two facts were measured against the live API before designing anything:
+
+- **The tick is exactly 60,000 ms.** Consecutive `lastUpdated` transitions were 60,000 ms apart,
+  and the measured period held at 60.3 s with 0 ms drift over six ticks.
+- **Every new listing lands on page 0.** Over one tick, the full book was 44,775 auctions over 45
+  pages and **130 of 130** newly created auctions were on page 0. So page 0 is the whole
+  new-listing feed, not a 1-in-36 sample, and a tick change is exactly when to fetch it.
+
+New `MarketTicker` predicts the next tick from the period it measures and opens a 150 ms burst
+for ~1.2 s before the boundary and ~2 s after it, sleeping otherwise. That is what makes
+sub-second delivery affordable: the heartbeat is **172 KB** (not 68 KB), so a flat 150 ms poll
+would be 172 KB × 6.7/s, and even the flat 2 s poll of 1.2.0 was about 300 MB/hour.
+
+Measured, tick detected to scored flips ready, over six consecutive ticks:
+
+| Step | Measured |
+|---|---|
+| page-0 request | 58–70 ms |
+| page-0 parse | 79–86 ms |
+| scoring | 11–18 ms |
+| **total** | **148–167 ms** |
+
+The announcement no longer waits for the pulse: `MarketService` calls an update listener the
+moment a scan publishes, and the client dispatches it to the game thread immediately. The 2 Hz
+pulse remains only as the purse refresh and as a safety net.
+
+Cost: about 13 heartbeat requests a minute, ~2.2 MB/min or ~130 MB/hour, down from ~300 MB/hour.
+If a predicted tick does not arrive, the window widens into a bounded hunt and the next transition
+re-measures the period, so a wrong prediction costs one late scan, never a dead feed.
+`/discordia status` gains a `tick` row with the measured period, the drift and the burst/idle poll
+counts. The first scan after joining still builds the full book (~4.4 s), which is unavoidable.
+
+### Reading the auction-house UI: asked, and deliberately not built
+
+Reading the open menu's slots (or the container packets) would work without OCR, but it would not
+scan everything — the GUI shows 45 slots in its own order, so 44,775 listings is ~995 pages,
+minutes per sweep, and Hypixel rate-limits the auction house on top of that. It is strictly slower
+than the page-0 path for the listings that matter.
+
+It is also against Hypixel's rules: reading auction data through the UI to see listings before
+other players is the unfair advantage those rules prohibit. Whether Watchdog's heuristics happen to
+catch a given build does not change the rule or the ban risk, so it is not built, and the README
+keeps its promise that the mod does not read the in-game auction-house UI or packets.
+
+Version 1.3.0. Artifact: `ahflip/build/libs/discordia-1.3.0.jar`.
+
+
+# Changelog
+
 ## 1.2.0 — 2026-11-24
 
 ### The page-0 and SkyCofl lanes were silent, and `NO_ANCHOR` blamed the market

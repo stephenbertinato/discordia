@@ -25,7 +25,7 @@ public final class HypixelApi {
     /** Current v2 spelling; used as a fallback if the legacy resource route is unavailable. */
     public static final String ITEMS_V2_URL = "https://api.hypixel.net/v2/resources/skyblock/items";
     public static final String AUCTIONS_URL = "https://api.hypixel.net/v2/skyblock/auctions?page=";
-    /** ~68 KB and shares the market tick with the auction dump: cheap heartbeat plus sale feed. */
+    /** ~172 KB and shares the market tick with the auction dump: heartbeat plus sale feed. */
     public static final String ENDED_URL = "https://api.hypixel.net/v2/skyblock/auctions_ended";
     private static final HttpClient CLIENT = HttpClient.newBuilder()
             .connectTimeout(Duration.ofSeconds(15))
@@ -35,7 +35,11 @@ public final class HypixelApi {
     private HypixelApi() {
     }
 
-    /** One page of the auction dump. Page 0 holds the newest 1,000 listings. */
+    /**
+     * One page of the auction dump. Every auction created in a tick lands on page 0 — verified
+     * over one tick against the live API, 130 of 130 new listings — so page 0 is the whole
+     * new-listing feed, not a 1-in-36 sample. Within the page the order is not by start time.
+     */
     public static JsonObject auctionPage(int page) throws IOException, InterruptedException {
         return getJson(AUCTIONS_URL + page);
     }

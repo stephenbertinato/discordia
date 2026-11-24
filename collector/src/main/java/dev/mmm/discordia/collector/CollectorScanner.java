@@ -11,6 +11,7 @@ import dev.mmm.discordia.core.GlobalSales;
 import dev.mmm.discordia.core.HypixelApi;
 import dev.mmm.discordia.core.ItemCatalog;
 import dev.mmm.discordia.core.MarketSnapshot;
+import dev.mmm.discordia.core.MarketTicker;
 import dev.mmm.discordia.core.SoldStats;
 
 import java.io.IOException;
@@ -52,6 +53,8 @@ public final class CollectorScanner {
     private long lastSave;
     private JsonObject bazaarCache;
     private long bazaarAt;
+    /** Predicts the 60 s market tick so the heartbeat is polled hard only around it. */
+    private final MarketTicker ticker = new MarketTicker();
     private Consumer<JsonObject> publisher = ignored -> {
     };
     private Consumer<JsonObject> statusPublisher = ignored -> {
@@ -132,7 +135,10 @@ public final class CollectorScanner {
             }
 
             try {
-                Thread.sleep(Math.max(1_000L, config.scanIntervalMs));
+                // The heartbeat is ~172 KB, so a flat interval would be hundreds of megabytes an
+                // hour. The ticker opens a burst only around the boundary it predicts from the
+                // measured 60 s cadence, which is what makes a scan reach chat in under a second.
+                Thread.sleep(ticker.nextDelayMs(System.currentTimeMillis()));
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
@@ -150,6 +156,7 @@ public final class CollectorScanner {
         long tick = ended.has("lastUpdated") ? ended.get("lastUpdated").getAsLong() : 0L;
         long now = System.currentTimeMillis();
         boolean tickChanged = tick != lastTick;
+        ticker.observe(tickChanged, now);
         boolean needBook = reference == null || now - lastFull >= config.fullRefreshMs;
         if (!tickChanged && !needBook) {
             status = "watching";

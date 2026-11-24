@@ -11,6 +11,7 @@ import dev.mmm.discordia.core.GlobalSales;
 import dev.mmm.discordia.core.HypixelApi;
 import dev.mmm.discordia.core.ItemCatalog;
 import dev.mmm.discordia.core.MarketSnapshot;
+import dev.mmm.discordia.core.MarketTicker;
 import dev.mmm.discordia.core.NpcPrices;
 import dev.mmm.discordia.core.SoldStats;
 import net.fabricmc.loader.api.FabricLoader;
@@ -67,6 +68,10 @@ public final class MarketService {
     private long lastSave;
     private JsonObject bazaarCache;
     private long bazaarAt;
+    /** Predicts the 60 s market tick so the heartbeat is polled hard only around it. */
+    private final MarketTicker ticker = new MarketTicker();
+    /** Called on the scan thread the moment a scan published new flips. */
+    private volatile Runnable updateListener;
 
     public MarketService(FlipConfig config) {
         this.config = config;
@@ -159,6 +164,7 @@ public final class MarketService {
                 long now = System.currentTimeMillis();
                 boolean force = takeRefresh();
                 boolean tickChanged = tick != lastTick;
+                ticker.observe(tickChanged, now);
                 boolean needBook = reference == null || force || now - lastFull >= config.fullRefreshMs;
 
                 if (needBook || tickChanged) {
@@ -211,6 +217,12 @@ public final class MarketService {
                     lastTick = tick;
                     status = "ok";
                     savedWork = true;
+                    // Publish immediately instead of waiting for the announcement pulse: the scan
+                    // thread already knows, and handing it to the client thread costs nothing.
+                    Runnable listener = updateListener;
+                    if (listener != null) {
+                        listener.run();
+                    }
                 } else {
                     status = "watching";
                 }
@@ -224,8 +236,12 @@ public final class MarketService {
                         + (e.getMessage() == null ? "" : " " + e.getMessage());
             }
 
+            // The heartbeat is ~172 KB. A flat 2 s poll would cost about 300 MB an hour, so the
+            // ticker opens a burst only around the boundary it predicts from the measured 60 s
+            // cadence. That is what makes the scan reach chat in under a second without hammering
+            // the endpoint the rest of the minute.
             synchronized (lock) {
-                long deadline = System.currentTimeMillis() + Math.max(1_000L, config.scanIntervalMs);
+                long deadline = System.currentTimeMillis() + ticker.nextDelayMs(System.currentTimeMillis());
                 while (!refresh) {
                     long remaining = deadline - System.currentTimeMillis();
                     if (remaining <= 0) {
@@ -344,6 +360,19 @@ public final class MarketService {
 
     public long lastUpdated() {
         return lastUpdated;
+    }
+
+    /** Registers the callback that announces a freshly published scan immediately. */
+    public void setUpdateListener(Runnable listener) {
+        this.updateListener = listener;
+    }
+
+    /** One line describing the tick prediction, for `/discordia status`. */
+    public String tickerHealth() {
+        long drift = ticker.lastLatencyMs();
+        return (drift < 0 ? "measuring" : "tick " + (ticker.periodMs() / 1000d) + "s"
+                + (drift <= 500L ? "" : " (drift " + drift + "ms)"))
+                + "  |  " + ticker.burstPolls() + " near tick / " + ticker.idlePolls() + " idle polls";
     }
 
     public int saleSamples() {

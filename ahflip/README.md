@@ -189,7 +189,7 @@ means reading the in-game auction house UI, which is automation and against Hypi
 ```
 
 First run downloads the 26.2 client jar, Fabric Loader, Gson and Minecraft's library set into
-`.tooling/` and `libs/` (gitignored). Output: `build/libs/discordia-1.2.0.jar`.
+`.tooling/` and `libs/` (gitignored). Output: `build/libs/discordia-1.3.0.jar`.
 
 Install: Fabric Loader 0.20.1+ profile for 26.2, drop the jar in `.minecraft/mods`. No Fabric API
 dependency.
@@ -610,28 +610,70 @@ a live listing above the cached cheapest (refused).
 Two reason codes now separate the failures that used to share one: `NO_ANCHOR` means another copy
 beats this listing, and `NOT_CHEAPEST` means it is the only copy with nothing above it.
 
-## Speed: what is left after the fix
+## Latency: sub-second, without hammering the API
 
-Latency from Hypixel publishing a listing to the chat line, measured against a live API:
+The auction dump is republished on a tick, and every auction created in a tick lands on page 0.
+Both facts were measured, not assumed: the tick period is **60,000 ms** across consecutive
+transitions, and over one tick **130 of 130** new auctions were on page 0 (the full book was
+44,775 auctions over 45 pages). So a page-0 fetch is the whole new-listing feed, and a tick
+change is exactly the moment to fetch it.
+
+`MarketTicker` measures the tick period from the transitions it sees and predicts the next one.
+The scan thread polls the heartbeat hard (150 ms) for the ~1.2 s before the predicted boundary
+and ~2 s after it, and sleeps otherwise. That is what makes sub-second delivery affordable: a flat
+150 ms poll would be 172 KB × 6.7/s, and even a flat 2 s poll is about 300 MB an hour.
+
+Measured against the live API, end to end from tick detection to scored flips ready:
 
 | Step | Measured |
 |---|---|
-| heartbeat poll interval | ≤ 2 s (was 5 s) |
-| `/auctions_ended` request | 28–37 ms warm, 419 ms cold |
-| page-0 request | 70–96 ms |
-| page-0 parse | 80–140 ms |
-| announcement pulse | ≤ 0.5 s |
+| heartbeat poll period (in the burst) | 150 ms |
+| page-0 request | 58–70 ms |
+| page-0 parse | 79–86 ms |
+| scoring | 11–18 ms |
+| **total, tick detected to chat-ready** | **148–167 ms** |
+| announcement | dispatched on the scan thread, no pulse wait |
 
-A new page-0 listing therefore reaches chat about **3 s** after Hypixel publishes the tick, instead
-of about 6 s. The SkyCofl lane polls every 2 s and can be quicker than the page-0 path, but it needs
-one auction-detail request per candidate, which the shared budget paces at 50/minute.
+That is **under a second with room to spare**, sustained: measured over six consecutive ticks,
+with the measured period at 60.3 s and drift 0 ms. The announcement is dispatched to the client
+thread the moment a scan publishes; the 2 Hz pulse stays only as the purse refresh and as a
+safety net.
 
-What cannot be bought: Hypixel publishes no listing before its own market tick (about once a
-minute), and every player polling the same public endpoints sees the same listing at the same
-moment. No setting makes this client "first to every flip". Anything that would — reading the
-auction-house UI, polling past the published rate limits, or buying automatically — is either
-automation against Hypixel's rules or a rate-limit ban. The honest edge is in the filters, not on
-the wire.
+Cost: about 13 heartbeat requests a minute, roughly 2.2 MB/min or ~130 MB/hour, instead of
+300 MB/hour for the flat 2 s poll. If a predicted tick has not arrived the window widens into a
+bounded hunt and the next transition re-measures the period, so a wrong prediction costs one late
+scan, never a dead feed. The first scan after joining still builds the full book (about 4.4 s),
+which is unavoidable.
+
+### What this does not fix
+
+Hypixel publishes no listing before its own tick, and everyone polling the same public endpoints
+sees a listing at the same instant. Sub-second delivery is not the same as being first: the ~150 ms
+here is your own pipeline, not an edge over other players.
+
+### Reading the auction-house UI instead (not implemented, on purpose)
+
+It is technically possible and it is worth being precise about why this mod does not do it.
+
+- **How it would work.** No screen reading or OCR is needed. When you open the auction house the
+  server sends the container contents, and a client-side mod can read the open menu's slots
+  directly, or read the `ClientboundContainerSetContentPacket` / `ClientboundContainerSetSlotPacket`
+  for it. Paging needs a click per page, so the data arrives only as fast as the server serves it.
+- **It would not scan everything.** The GUI shows 45 slots at a time, sorted by the GUI's own
+  order, not by recency. A 44,775-listing book is 995 GUI pages; at a plausible click rate that
+  is minutes per sweep, and Hypixel rate-limits the auction house on top of that. It is strictly
+  slower than the 148–167 ms page-0 path for the listings that matter.
+- **Detectability is the wrong question.** Hypixel's rules prohibit mods that automate gameplay or
+  give an unfair advantage, and reading auction data through the UI to get listings before other
+  players is exactly that. Whether Watchdog's heuristics happen to catch a given build does not
+  change the rule or the ban risk — "undetectable, so it's fine" is not a safe trade for an
+  account. It also breaks this mod's stated contract: `README.md` says it does not read the
+  in-game auction-house UI or packets, and that promise is the reason it is safe to install.
+
+If you want a faster feed than the public endpoints allow, the legitimate answer is more
+sources: the SkyCofl candle/active feed already in the fast lane, and the optional collector
+server, which polls once and shares the result with every client connected to it instead of each
+client polling separately.
 
 ## Sale statistics
 
@@ -761,7 +803,7 @@ the SkyCofl summary cache; local exact-variant history remains the second layer.
   book gives `SCROLL_UNAVAILABLE`, and 30M + 6M scrolls over a 34M cap gives `OVER_BUDGET`; a
   three-listing book backed by five realized sales is priced while the same book without sales
   gives `THIN_POOL`; and two sales a month over a six-listing pool gives `CAPITAL_TRAP`.
-- Build on this machine: `ahflip/build.sh` produced `build/libs/discordia-1.2.0.jar` against the
+- Build on this machine: `ahflip/build.sh` produced `build/libs/discordia-1.3.0.jar` against the
   real 26.2 client jar, and `collector/build.sh` produced `collector/build/classes`.
   `GlobalGateProbe`, `GlobalFailureProbe` and `CoflContractProbe` all still pass, and `./verify.sh`
   (all four probes) exits 0. The build script now falls back to `python3` when `node` is absent,
