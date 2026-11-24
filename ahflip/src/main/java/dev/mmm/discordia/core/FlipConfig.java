@@ -69,7 +69,7 @@ public final class FlipConfig {
     public double marginScaleFrom = 10_000_000d;
     public double marginScaleStep = 20_000_000d;
     public double marginScalePct = 1d;
-    public double maxScaledMarginPct = 25d;
+    public double maxScaledMarginPct = 20d;
     /** Keep strong book gaps even when no same-variant sale exists; they are labeled book-only. */
     public boolean bookOnlyFlips = true;
     public double bookOnlyMinProfit = 1_000_000d;

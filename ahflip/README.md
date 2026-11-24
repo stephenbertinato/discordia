@@ -678,8 +678,9 @@ client polling separately.
 
 The percentage gate is not flat. Below `marginScaleFrom` (**10M**) the base `minMarginPct` (8%)
 applies; every `marginScaleStep` (**20M**) of buy price above it adds `marginScalePct` (**1%**), up
-to `maxScaledMarginPct` (**25%**). A 50M flip must clear 10%, a 150M flip 15%, and anything past
-~310M the 25% cap. Big flips lock up big capital, so they have to earn like it.
+to `maxScaledMarginPct` (**20%**). A 50M flip must clear 10%, a 150M flip 15%, and anything past
+~210M the 20% cap. Big flips lock up big capital, so they have to earn like it — but the cap stays
+below a real 577.6M Terminator's 23.9%, so the scale never rejects the flip it was written for.
 
 The old `largeProfitOverride` escape hatch is gone: an absolute profit no longer waves a thin
 percentage through. A 500M item that returns 2% is still a 500M item that returns 2%.

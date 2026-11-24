@@ -396,6 +396,10 @@ public final class AlgorithmGuardProbe {
                 "the hurdle stops at the configured maximum");
         check(Math.abs(config.marginFor(2_000_000_000d) - config.maxScaledMarginPct) < 1e-9,
                 "an absurd price cannot demand an absurd margin");
+        // A real observed flip: a 577.6M Terminator resold at 753M nets 23.9% after fees. The cap
+        // must sit under that, or the price scale would reject the best flip it was written for.
+        check(config.marginFor(577_648_565d) < 23.9,
+                "the 577.6M Terminator at 23.9% must clear the hurdle, not be capped out of it");
         check(Math.abs(config.maxCost() - config.budget) < 1e-9,
                 "the only cost ceiling is the purse");
         config.budget = 512_000_000d;

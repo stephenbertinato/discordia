@@ -848,7 +848,7 @@ requireGlobalPriceForPlainFlips true
 marginScaleFrom                10,000,000
 marginScaleStep                20,000,000
 marginScalePct                 1
-maxScaledMarginPct             25
+maxScaledMarginPct             20
 bookOnlyFlips                  true
 bookOnlyMinProfit              1,000,000
 bookOnlyMinMarginPct           8

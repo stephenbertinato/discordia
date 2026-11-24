@@ -13,8 +13,10 @@ Asking whether a good flip is "worth it" is the margin gate's job, not a cost ca
 
 A flat 8% is the wrong test for a 500M flip: it treats 40M of locked capital the same as 4M. Below
 `marginScaleFrom` (**10M**) the base `minMarginPct` still applies; every `marginScaleStep`
-(**20M**) above it adds `marginScalePct` (**1%**), up to `maxScaledMarginPct` (**25%**). That is
-8% at 10M, 10% at 50M, 15% at 150M, and the 25% cap past ~310M. The same curve now applies to
+(**20M**) above it adds `marginScalePct` (**1%**), up to `maxScaledMarginPct` (**20%**). That is
+8% at 10M, 10% at 50M, 15% at 150M, and the 20% cap past ~210M. The cap is deliberate: the
+577.6M Terminator that started this nets **23.9%** after fees, so a 20% cap clears it with room
+while a 25% cap would have rejected a 138M profit. The same curve now applies to
 book-only flips, non-BIN snipes and craft flips.
 
 `largeProfitOverride` is gone too. It let any flip with 1M of absolute profit skip the percentage
@@ -37,8 +39,9 @@ next partial listing became the binding constraint and the scroll ceiling stoppe
 all. It now enters at 26M against a 33.41M full-blade cap, so the cap it asserts is the cap that
 binds.
 
-`AlgorithmGuardProbe` is now **90 checks**, including the exact curve (8% at 5M, 10% at 50M, 25% at
-500M, still 25% at 2B) and that `maxCost()` equals the purse at 512M. `./verify.sh` exits 0.
+`AlgorithmGuardProbe` is now **91 checks**, including the exact curve (8% at 5M, 10% at 50M, 20% at
+500M, still 20% at 2B), that the 577.6M/23.9% Terminator clears the hurdle, and that `maxCost()`
+equals the purse at 512M. `./verify.sh` exits 0.
 
 
 ## 1.4.0 — 2026-11-24
