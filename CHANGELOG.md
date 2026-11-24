@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.3.1 — 2026-11-24
+
+### A verified market exit outranks the book's margin cap
+
+Reviewing a tracked flipper's history showed the single largest class of missed flips: a plain
+accessory mislisted at a fraction of its value. `Vaccine Artifact` bought at **17 coins** and sold
+near **15.7M**, `Tarantula Talisman` 500k -> 7.9M, `Shriveled Wasp` 100k -> 16.9M, `Spider
+Artifact` 790k -> 7.65M, `Aurora Dye` 3.95M -> 38.95M — every one of these was refused by
+`IMPLAUSIBLE_MARGIN`, because a 900,000% margin on the book's own evidence is indeed implausible.
+
+The book is not the only evidence. When the market-wide weekly summary has at least
+`minGlobalSalesForTrustedExit` (**50**) sales, that median is an exit nobody in this book controls,
+and the target has already been clamped to `maxTargetOverGlobalMedian` on it. A listing far below a
+verified median is cheap in fact, so the margin cap no longer applies to it. The detail line says so:
+`(verified exit, 412 weekly sales)`.
+
+Nothing else moved. The buy price still has to sit under `maxBuyOverGlobalMedian` of the same median,
+the conservative p25 exit and 1.5% reserve still set the profit, the hold-horizon and risk-adjusted
+gates still run, and a summary with fewer than 50 sales keeps the old cap — the probe asserts both
+sides (`17 coins under a 15.6M verified median is priced`, `6 weekly sales: still refused`).
+
+`AlgorithmGuardProbe` is now **70 checks**; `./verify.sh` exits 0.
+
+
 ## 1.3.0 — 2026-11-24
 
 ### Sub-second delivery, measured at 148–167 ms

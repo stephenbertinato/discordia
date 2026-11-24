@@ -52,6 +52,13 @@ public final class FlipConfig {
     public double maxTargetOverGlobalMedian = 1.40d;
     /** Weekly sales required before the market-wide median is trusted. */
     public int minGlobalSalesForPriceGuard = 8;
+    /**
+     * Weekly sales required before the market-wide median is treated as an <em>independently
+     * verified exit</em> for a plain item. Hundreds of sales at a median are stronger evidence than
+     * any book, so a listing far under that median is genuinely cheap, not an impossible margin.
+     * Below this count the ordinary margin cap applies unchanged.
+     */
+    public int minGlobalSalesForTrustedExit = 50;
     /** Plain items: do not show them until Cofl provides enough weekly sales to price them. */
     public boolean requireGlobalPriceForPlainFlips = true;
     /** Percentage margin gates are bypassed when the absolute profit is at least this large. */
@@ -178,6 +185,7 @@ public final class FlipConfig {
         c.maxBuyOverGlobalMedianWithSales = maxBuyOverGlobalMedianWithSales;
         c.maxTargetOverGlobalMedian = maxTargetOverGlobalMedian;
         c.minGlobalSalesForPriceGuard = minGlobalSalesForPriceGuard;
+        c.minGlobalSalesForTrustedExit = minGlobalSalesForTrustedExit;
         c.requireGlobalPriceForPlainFlips = requireGlobalPriceForPlainFlips;
         c.largeProfitOverride = largeProfitOverride;
         c.bookOnlyFlips = bookOnlyFlips;

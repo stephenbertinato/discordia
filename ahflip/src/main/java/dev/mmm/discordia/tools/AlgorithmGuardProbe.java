@@ -346,6 +346,33 @@ public final class AlgorithmGuardProbe {
         flips = engine.compute(plainBook().build(), plainBook().build(), config, trusted, null, null).auctions();
         check(!flips.isEmpty(), "a trusted weekly median must let a plain book flip through");
         System.out.println("PASS plain item with a trusted 400-sale weekly median: priced");
+
+        // A mislisted cheap copy inside a thick market. The book alone can never justify a
+        // nine-hundred-thousand-percent margin, but 200 weekly sales at a 15.6M median can: the
+        // exit is external truth. Refusing this as IMPLAUSIBLE_MARGIN is how a real 15M flip that
+        // the whole market trades every day gets thrown away.
+        Book mislisted = new Book();
+        mislisted.add("misl-cheap", "Plain Ring", "RARE", plain("PLAIN_RING"), 17d);
+        for (int i = 0; i < 6; i++) {
+            mislisted.add("misl-dear-" + i, "Plain Ring", "RARE", plain("PLAIN_RING"), 15_600_000d);
+        }
+        SoldStats thick = new SoldStats();
+        seedGlobal(thick, "PLAIN_RING", 15_600_000d, 400d);
+        engine = new FlipEngine();
+        flips = engine.compute(mislisted.build(), mislisted.build(), config, thick, null, null).auctions();
+        check(!flips.isEmpty(), "a 17-coin listing under a 15.6M verified median must be announced");
+        check(flips.isEmpty() || flips.get(0).detail().contains("verified exit"),
+                "the alert must cite the weekly sales that verified its exit");
+        System.out.println("PASS mislisted copy: 17 coins under a 15.6M verified median is priced");
+
+        // The same listing with a thin summary must stay refused: 6 sales prove nothing.
+        SoldStats unverified = new SoldStats();
+        soldCount(unverified, "PLAIN_RING", 6);
+        engine = new FlipEngine();
+        flips = engine.compute(mislisted.build(), mislisted.build(), config, unverified, null, null)
+                .auctions();
+        check(flips.isEmpty(), "a six-sale summary must never license an unbounded margin");
+        System.out.println("PASS mislisted copy with 6 weekly sales: still refused");
     }
 
     /** A non-recombed copy is worth the recombed price minus the live recombobulator cost. */

@@ -620,6 +620,7 @@ public final class FlipEngine {
                 // weekly median; buying five listings above that is not a flip, it is the exit
                 // liquidity for whoever inflated the book.
                 String globalPriceNote = "";
+                boolean trustedExit = false;
                 if (isPlainAuctionVariant(listing)) {
                     SoldStats.Stats weekly = sold == null
                             ? SoldStats.EMPTY : sold.globalSummary(listing.skyblockId());
@@ -645,6 +646,16 @@ public final class FlipEngine {
                         if (target > weeklyTargetCap) {
                             target = weeklyTargetCap;
                             globalPriceNote = String.format(" (weekly median cap %s)", coins(weekly.median()));
+                        }
+                        // A thick market-wide median is an exit nobody in this book controls. When
+                        // hundreds of sales happen at that price, a listing far below it is cheap in
+                        // fact, and the book's own margin can no longer be "implausible". The cap
+                        // exists to reject pumped fiction, not a 17-coin accessory the whole market
+                        // resells for millions.
+                        if (weekly.count() >= config.minGlobalSalesForTrustedExit) {
+                            trustedExit = true;
+                            globalPriceNote += String.format(" (verified exit, %d weekly sales)",
+                                    weekly.count());
                         }
                     }
                 }
@@ -798,7 +809,7 @@ public final class FlipEngine {
                 // A 300% "profit" on a thin book is a trap, not an edge. The wider cap is only
                 // justified when the target itself came from comparable sales; an asking price
                 // is not evidence.
-                if (margin > marginCap) {
+                if (!trustedExit && margin > marginCap) {
                     rejections.count(Rejections.Reason.IMPLAUSIBLE_MARGIN);
                     continue;
                 }
