@@ -14,7 +14,7 @@ LOADER_VERSION="0.20.1"
 LOADER_URL="https://maven.fabricmc.net/net/fabricmc/fabric-loader/${LOADER_VERSION}/fabric-loader-${LOADER_VERSION}.jar"
 MIXIN_URL="https://repo.spongepowered.org/repository/maven-public/org/spongepowered/mixin/0.8.7/mixin-0.8.7.jar"
 GSON_URL="https://repo1.maven.org/maven2/com/google/code/gson/gson/2.11.0/gson-2.11.0.jar"
-MOD_VERSION="1.0.0"
+MOD_VERSION="1.1.0"
 
 case "$(uname -s)" in
   MINGW*|MSYS*|CYGWIN*) CP_SEP=";" ;;
@@ -48,7 +48,22 @@ if [ ! -d libs/mc ] || [ -z "$(ls -A libs/mc 2>/dev/null)" ]; then
   echo "Resolving Minecraft libraries..."
   mkdir -p libs/mc .tooling
   curl -fsSL --retry 3 -o .tooling/mc-meta.json "$MC_META_URL"
-  node -e 'const j=require("./.tooling/mc-meta.json");for(const l of j.libraries){if(l.downloads&&l.downloads.artifact&&l.downloads.artifact.url)console.log(l.downloads.artifact.url)}' > .tooling/liburls.txt
+  if command -v node >/dev/null 2>&1; then
+    node -e 'const j=require("./.tooling/mc-meta.json");for(const l of j.libraries){if(l.downloads&&l.downloads.artifact&&l.downloads.artifact.url)console.log(l.downloads.artifact.url)}' > .tooling/liburls.txt
+  elif command -v python3 >/dev/null 2>&1; then
+    python3 - <<'PY' > .tooling/liburls.txt
+import json
+with open(".tooling/mc-meta.json") as handle:
+    meta = json.load(handle)
+for library in meta.get("libraries", []):
+    artifact = (library.get("downloads") or {}).get("artifact") or {}
+    if artifact.get("url"):
+        print(artifact["url"])
+PY
+  else
+    echo "Need node or python3 to read the Minecraft library manifest." >&2
+    exit 1
+  fi
   while read -r url; do
     file="libs/mc/$(basename "$url")"
     [ -f "$file" ] || curl -fsSL --retry 2 -o "$file" "$url"
