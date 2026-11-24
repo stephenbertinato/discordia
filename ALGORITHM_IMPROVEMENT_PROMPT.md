@@ -845,10 +845,8 @@ maxBuyOverGlobalMedianWithSales 1.25
 maxTargetOverGlobalMedian      1.40
 minGlobalSalesForPriceGuard    8
 requireGlobalPriceForPlainFlips true
-marginScaleFrom                10,000,000
-marginScaleStep                20,000,000
-marginScalePct                 1
-maxScaledMarginPct             20
+minAbsoluteMarginProfit       20,000,000   (enough on its own above ~250M)
+minMarginFloorPct              2
 bookOnlyFlips                  true
 bookOnlyMinProfit              1,000,000
 bookOnlyMinMarginPct           8

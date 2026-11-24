@@ -809,8 +809,8 @@ public final class FlipEngine {
                 }
 
                 // --- Fee-inclusive profit at the conservative exit -----------------------------
-                // The hurdle rises with the price: a 500M flip locks up 500M and must clear more
-                // than the 8% that is enough for a 5M one.
+                // The hurdle never rises with price. Above ~250M it eases instead, because 20M of
+                // profit is worth taking on a 300M flip; thin books add their own premium below.
                 double requiredMargin = Math.max(config.marginFor(listing.price()),
                         thickSales ? 0d : config.thinSalesMarginPct);
                 if (!liquidity.known()) {
@@ -827,9 +827,8 @@ public final class FlipEngine {
                     continue;
                 }
                 double margin = profit / listing.price() * 100d;
-                // A percentage margin is the wrong gate for expensive items. A 380M pet at 2%
-                // is a 5.9M flip, which is better than a 600k flip at 14%; let absolute profit
-                // carry the trade when the percentage is thin but the sales support it.
+                // The requirement itself eases with price now, so this stays a plain floor. No
+                // absolute-profit override, and no loophole: a thin book still cannot set the exit.
                 if (margin < requiredMargin) {
                     rejections.count(Rejections.Reason.MARGIN);
                     continue;

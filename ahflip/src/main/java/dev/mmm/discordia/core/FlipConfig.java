@@ -61,15 +61,14 @@ public final class FlipConfig {
     /** Plain items: do not show them until Cofl provides enough weekly sales to price them. */
     public boolean requireGlobalPriceForPlainFlips = true;
     /**
-     * The margin hurdle grows with the buy price, because a big flip locks up big capital. Below
-     * {@link #marginScaleFrom} the plain {@link #minMarginPct} applies; every
-     * {@link #marginScaleStep} coins above it adds {@link #marginScalePct}, up to
-     * {@link #maxScaledMarginPct}. A 500M flip has to earn as if 500M is at stake, not 8%.
+     * No price-scaled hurdle: {@link #minMarginPct} is the same 8% at 5M and at 500M. Once
+     * {@code minAbsoluteMarginProfit} alone is enough, the requirement eases instead of rising,
+     * because 20M of profit is worth taking on a 300M flip even though it is 6.7% — and a 74M
+     * profit on that same flip is one of the best trades the scanner can find.
      */
-    public double marginScaleFrom = 10_000_000d;
-    public double marginScaleStep = 20_000_000d;
-    public double marginScalePct = 1d;
-    public double maxScaledMarginPct = 20d;
+    public double minAbsoluteMarginProfit = 20_000_000d;
+    /** Easing stops here, so a billion-coin flip still has to earn something real. */
+    public double minMarginFloorPct = 2d;
     /** Keep strong book gaps even when no same-variant sale exists; they are labeled book-only. */
     public boolean bookOnlyFlips = true;
     public double bookOnlyMinProfit = 1_000_000d;
@@ -174,13 +173,17 @@ public final class FlipConfig {
         return budget;
     }
 
-    /** The margin a flip must clear at this buy price; see {@link #marginScaleFrom}. */
+    /**
+     * The margin a flip must clear at this buy price. The hurdle never rises with price: it is
+     * {@link #minMarginPct} until {@link #minAbsoluteMarginProfit} is enough on its own, then it
+     * eases toward {@link #minMarginFloorPct}. A 300M flip needs 6.7% (20M), not 25%.
+     */
     public double marginFor(double price) {
-        double hurdle = minMarginPct;
-        if (price > marginScaleFrom && marginScaleStep > 0d) {
-            hurdle += (price - marginScaleFrom) / marginScaleStep * marginScalePct;
+        if (price <= 0d || minAbsoluteMarginProfit <= 0d) {
+            return minMarginPct;
         }
-        return Math.max(minMarginPct, Math.min(hurdle, maxScaledMarginPct));
+        double byProfit = minAbsoluteMarginProfit / price * 100d;
+        return Math.min(minMarginPct, Math.max(byProfit, minMarginFloorPct));
     }
 
     public FlipConfig copy() {
@@ -217,10 +220,8 @@ public final class FlipConfig {
         c.minGlobalSalesForPriceGuard = minGlobalSalesForPriceGuard;
         c.minGlobalSalesForTrustedExit = minGlobalSalesForTrustedExit;
         c.requireGlobalPriceForPlainFlips = requireGlobalPriceForPlainFlips;
-        c.marginScaleFrom = marginScaleFrom;
-        c.marginScaleStep = marginScaleStep;
-        c.marginScalePct = marginScalePct;
-        c.maxScaledMarginPct = maxScaledMarginPct;
+        c.minAbsoluteMarginProfit = minAbsoluteMarginProfit;
+        c.minMarginFloorPct = minMarginFloorPct;
         c.bookOnlyFlips = bookOnlyFlips;
         c.bookOnlyMinProfit = bookOnlyMinProfit;
         c.bookOnlyMinMarginPct = bookOnlyMinMarginPct;

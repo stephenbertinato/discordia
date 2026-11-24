@@ -387,10 +387,8 @@ public final class DiscordiaClient implements ClientModInitializer {
         statusRow(minecraft, "feed", MARKET.status()
                 + (age < 0 ? "  |  tick waiting" : "  |  tick " + age + "s"));
         statusRow(minecraft, "flips", bin + " BIN" + (includeNonBin ? "  |  " + snipes + " non-BIN" : ""));
-        statusRow(minecraft, "filters", "margin >= " + trimNumber(CONFIG.minMarginPct) + "% ("
-                + trimNumber(CONFIG.marginScalePct) + "%/" + coins(CONFIG.marginScaleStep)
-                + " above " + coins(CONFIG.marginScaleFrom) + ", max "
-                + trimNumber(CONFIG.maxScaledMarginPct) + "%)"
+        statusRow(minecraft, "filters", "margin >= " + trimNumber(CONFIG.minMarginPct) + "% (eases to "
+                + coins(CONFIG.minAbsoluteMarginProfit) + " profit on big items)"
                 + "  |  profit >= " + coins(CONFIG.minProfit)
                 + "  |  purse cap " + (CONFIG.budget > 0d ? coins(CONFIG.budget) : "waiting"));
         statusRow(minecraft, "data", MARKET.catalogItems() + " items  |  "
@@ -440,10 +438,8 @@ public final class DiscordiaClient implements ClientModInitializer {
         feed.append(tickAge < 0 ? "  |  tick waiting" : "  |  tick " + tickAge + "s");
         statusRow(minecraft, "feed", feed.toString());
         statusRow(minecraft, "flips", bin + " BIN" + (includeNonBin ? "  |  " + snipes + " non-BIN" : ""));
-        statusRow(minecraft, "filters", "margin >= " + trimNumber(CONFIG.minMarginPct) + "% ("
-                + trimNumber(CONFIG.marginScalePct) + "%/" + coins(CONFIG.marginScaleStep)
-                + " above " + coins(CONFIG.marginScaleFrom) + ", max "
-                + trimNumber(CONFIG.maxScaledMarginPct) + "%)"
+        statusRow(minecraft, "filters", "margin >= " + trimNumber(CONFIG.minMarginPct) + "% (eases to "
+                + coins(CONFIG.minAbsoluteMarginProfit) + " profit on big items)"
                 + "  |  profit >= " + coins(CONFIG.minProfit)
                 + "  |  purse cap " + (CONFIG.budget > 0d ? coins(CONFIG.budget) : "waiting"));
         statusRow(minecraft, "source", displayCollectorUrl());

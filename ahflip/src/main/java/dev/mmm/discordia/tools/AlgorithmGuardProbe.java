@@ -380,35 +380,40 @@ public final class AlgorithmGuardProbe {
     }
 
     /**
-     * The margin hurdle rises with the buy price, and the purse is the only cost ceiling. A 500M
-     * flip has to earn as if 500M is at stake; there is no absolute-profit escape hatch any more.
+     * There is no price-scaled hurdle: the margin never rises with the buy price, and above ~250M
+     * it eases, because a 20M profit on a 300M flip is worth taking. The purse is the only cap.
      */
     private static void marginScaling() {
-        section("price-scaled margin and purse ceiling");
+        section("margin floor, absolute-profit easing, purse ceiling");
         FlipConfig config = new FlipConfig();
         check(Math.abs(config.marginFor(5_000_000d) - config.minMarginPct) < 1e-9,
-                "a cheap flip keeps the base hurdle");
-        check(Math.abs(config.marginFor(50_000_000d) - 10d) < 1e-9,
-                "8% base plus 1% per 20M over 10M is 10% at 50M");
-        check(config.marginFor(500_000_000d) > config.marginFor(50_000_000d),
-                "a 500M flip must clear more than a 50M one");
-        check(Math.abs(config.marginFor(500_000_000d) - config.maxScaledMarginPct) < 1e-9,
-                "the hurdle stops at the configured maximum");
-        check(Math.abs(config.marginFor(2_000_000_000d) - config.maxScaledMarginPct) < 1e-9,
-                "an absurd price cannot demand an absurd margin");
-        // A real observed flip: a 577.6M Terminator resold at 753M nets 23.9% after fees. The cap
-        // must sit under that, or the price scale would reject the best flip it was written for.
+                "a cheap flip keeps the base floor");
+        check(Math.abs(config.marginFor(50_000_000d) - config.minMarginPct) < 1e-9,
+                "a 50M flip must not be asked for more than a 5M one");
+        check(Math.abs(config.marginFor(100_000_000d) - config.minMarginPct) < 1e-9,
+                "no hurdle at 100M either: 8% is 8% at any price");
+        check(Math.abs(config.marginFor(300_000_000d) - 20_000_000d / 300_000_000d * 100d) < 1e-9,
+                "20M of profit is exactly enough at 300M");
+        check(config.marginFor(300_000_000d) < 7d,
+                "a 300M flip needs 6.7%, not a price-scaled 25%");
+        check(config.marginFor(500_000_000d) < config.marginFor(300_000_000d),
+                "the requirement eases with price; it never rises");
+        check(Math.abs(config.marginFor(2_000_000_000d) - config.minMarginFloorPct) < 1e-9,
+                "the easing bottoms out at the floor");
+        // A real observed flip: a 577.6M Terminator resold at 753M nets 23.9% after fees. A 74M
+        // profit on a 300M flip is 24.7%. Neither may ever be called a thin return.
         check(config.marginFor(577_648_565d) < 23.9,
-                "the 577.6M Terminator at 23.9% must clear the hurdle, not be capped out of it");
+                "the 577.6M Terminator at 23.9% must clear with room to spare");
+        check(config.marginFor(300_000_000d) < 24.7,
+                "a 74M profit on a 300M flip (24.7%) is never a thin return");
         check(Math.abs(config.maxCost() - config.budget) < 1e-9,
                 "the only cost ceiling is the purse");
         config.budget = 512_000_000d;
         check(Math.abs(config.maxCost() - 512_000_000d) < 1e-9,
                 "a 500M listing must fit a 512M purse with no extra item cap");
         System.out.println(String.format(
-                "PASS hurdle 5M %.0f%%, 50M %.0f%%, 500M %.0f%%; cap is the purse",
-                config.marginFor(5_000_000d), config.marginFor(50_000_000d),
-                config.marginFor(500_000_000d)));
+                "PASS margin %.0f%% at 5M and 100M, %.1f%% at 300M (20M), floor %.0f%%; purse is the only cap",
+                config.minMarginPct, config.marginFor(300_000_000d), config.minMarginFloorPct));
     }
 
     /**

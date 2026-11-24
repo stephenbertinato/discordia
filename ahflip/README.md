@@ -674,16 +674,15 @@ sources: the SkyCofl candle/active feed already in the fast lane, and the option
 server, which polls once and shares the result with every client connected to it instead of each
 client polling separately.
 
-## Margin scales with price
+## Margin never rises with price
 
-The percentage gate is not flat. Below `marginScaleFrom` (**10M**) the base `minMarginPct` (8%)
-applies; every `marginScaleStep` (**20M**) of buy price above it adds `marginScalePct` (**1%**), up
-to `maxScaledMarginPct` (**20%**). A 50M flip must clear 10%, a 150M flip 15%, and anything past
-~210M the 20% cap. Big flips lock up big capital, so they have to earn like it — but the cap stays
-below a real 577.6M Terminator's 23.9%, so the scale never rejects the flip it was written for.
+There is no price-scaled hurdle. `minMarginPct` (8%) is the floor at 5M and at 500M, and above
+~250M the requirement **eases**: once `minAbsoluteMarginProfit` (**20M**) is enough on its own, the
+percentage falls out of the way, bottoming at `minMarginFloorPct` (**2%**). That means a 300M flip
+needs **6.7%**, not 25% — a 74M profit there is one of the best trades the scanner can find, and a
+20M profit is worth taking too.
 
-The old `largeProfitOverride` escape hatch is gone: an absolute profit no longer waves a thin
-percentage through. A 500M item that returns 2% is still a 500M item that returns 2%.
+A 74M flip on a 300M listing used to look thin to a 25% hurdle. It is not thin: it is 74M.
 
 There is no item cap and no budget share. `maxCost()` returns the purse, which the in-game client
 re-reads from the scoreboard every pulse, so a 500M listing is judged on whether you can afford it

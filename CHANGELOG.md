@@ -1,6 +1,41 @@
 # Changelog
 
-## 1.5.0 — 2026-11-24
+## 1.5.1 — 2026-11-24
+
+### The margin hurdle is gone
+
+1.5.0 raised the margin requirement with the buy price. That was wrong: at 300M a 74M profit is
+24.7%, which a 25% hurdle called thin, and a 20M profit — 6.7% — is still a flip worth buying.
+A percentage is the wrong lens once the absolute number is that large.
+
+`marginFor()` no longer rises at any price. It is `minMarginPct` (8%) until
+`minAbsoluteMarginProfit` (**20M**) is enough on its own, then it **eases** toward
+`minMarginFloorPct` (**2%**):
+
+| buy price | required margin | required profit |
+| --- | --- | --- |
+| 5M | 8% | 400k |
+| 100M | 8% | 8M |
+| 250M | 8% | 20M |
+| 300M | 6.7% | 20M |
+| 500M | 4% | 20M |
+| 1B | 2% | 20M |
+
+So the 577.6M Terminator at 23.9% clears with room to spare, a 74M profit on a 300M flip is never
+"thin", and 20M on that same flip passes. The requirement never rises with price at any point.
+
+This applies everywhere the old hurdle did: BIN auctions, book-only flips, non-BIN snipes and craft
+flips. There is still no absolute-profit override and no item cap — the purse is the only ceiling,
+for real (non-BIN) auctions as well, where the bid limit was always `maxCost()`.
+
+### Verification
+
+`AlgorithmGuardProbe` is **94 checks** and pins the table above, that the requirement is strictly
+lower at 500M than at 300M, that it bottoms out at 2%, and that the real Terminator numbers clear.
+`./verify.sh` exits 0.
+
+
+## 1.5.0 — 2026-11-24 *(superseded by 1.5.1: the rising scale was removed)*
 
 ### The purse is the only cost ceiling
 
