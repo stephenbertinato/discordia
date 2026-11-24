@@ -79,6 +79,19 @@ Command responses use a compact colored `[Discordia]` layout: `OK` for accepted 
 there is no separate item cap to set, and a flip is limited only by whether you can afford it.
 Book-only auction flips keep their stricter 1M/8% safety floor even if the normal floor is lowered.
 
+## Keybind: hold to open the best flip
+
+Options → Controls → **Discordia** → *Open best flip (hold)*. It is bound to nothing by default, so
+it can never collide with a vanilla key.
+
+While it is held and no screen is open, the client runs `/viewauction <uuid>` for the
+highest-profit flip in the current list. A different best flip opens after 500ms; the same one
+repeats no faster than every 2s. Holding it with an auction window open does nothing at all —
+re-opening the window under your cursor is how a misclick happens.
+
+Like everything else here it only sends a command you could have typed: it never buys, bids or
+clicks.
+
 ## How the scanning works
 
 The auction dump is expensive and the market only ticks about once a minute. Measured:

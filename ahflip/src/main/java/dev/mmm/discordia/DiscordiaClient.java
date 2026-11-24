@@ -76,6 +76,9 @@ public final class DiscordiaClient implements ClientModInitializer {
     private static volatile boolean embeddedCollector;
 
     private final Set<String> announcedFlipIds = new HashSet<>();
+    /** Keybind state: the last flip it opened and when, so holding does not spam the command. */
+    private static volatile String heldFlipId = "";
+    private static volatile long heldFlipAt;
 
     @Override
     public void onInitializeClient() {
@@ -907,6 +910,51 @@ public final class DiscordiaClient implements ClientModInitializer {
         }
         minecraft.player.connection.sendCommand(command.startsWith("/") ? command.substring(1) : command);
         success(minecraft, "Opening " + flip.name() + " - buy it yourself.");
+    }
+
+    /**
+     * Keybind: while held, open the highest-profit flip in the current list.
+     *
+     * <p>It only repeats {@code /viewauction}, so the mod still never buys, bids or clicks. A GUI on
+     * screen blocks it entirely: re-opening the auction window under the cursor is how a misclick
+     * happens. A different best flip opens after 500ms; the same one waits 2s so holding the key
+     * does not loop the same auction.
+     */
+    public static void openBestWhileHeld(Minecraft minecraft) {
+        DiscordiaClient client = instance;
+        if (client == null || minecraft == null || minecraft.player == null
+                || minecraft.player.connection == null) {
+            return;
+        }
+        if (!DiscordiaKeys.OPEN_BEST.isDown()) {
+            heldFlipId = "";
+            return;
+        }
+        if (minecraft.gui != null && minecraft.gui.screen() != null) {
+            return;
+        }
+        Flip best = null;
+        for (Flip flip : client.combined()) {
+            if (flip.command().isEmpty()) {
+                continue;
+            }
+            if (best == null || flip.profit() > best.profit()) {
+                best = flip;
+            }
+        }
+        if (best == null) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        boolean same = best.id().equals(heldFlipId);
+        if (now - heldFlipAt < (same ? 2_000L : 500L)) {
+            return;
+        }
+        heldFlipId = best.id();
+        heldFlipAt = now;
+        String command = best.command();
+        minecraft.player.connection.sendCommand(
+                command.startsWith("/") ? command.substring(1) : command);
     }
 
     private void copyBest() {

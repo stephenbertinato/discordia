@@ -3,7 +3,9 @@
   "package": "dev.mmm.discordia.mixin",
   "compatibilityLevel": "JAVA_21",
   "client": [
-    "ClientPacketListenerMixin"
+    "ClientPacketListenerMixin",
+    "MinecraftMixin",
+    "OptionsMixin"
   ],
   "injectors": {
     "defaultRequire": 1

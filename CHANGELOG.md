@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.6.0 — 2026-11-24
+
+### Hold a key to open the best flip
+
+A new binding appears in **Options → Controls → Discordia**: *Open best flip (hold)*. Unbound by
+default. While held with no screen open it runs `/viewauction <uuid>` for the highest-profit flip in
+the current list, so a good flip can be opened without typing or clicking a chat line.
+
+- a different best flip opens after **500ms**, the same one no faster than every **2s**;
+- an open screen blocks it completely, because re-opening the auction window under the cursor is
+  how a misclick happens;
+- it still only sends the command the player could have typed. Nothing is bought, bid or clicked.
+
+Minecraft 26.2 has no API for third-party bindings, so the jar uses two small mixins: one appends
+the binding to `Options.keyMappings` at the head of `load()` (early enough that a key saved in
+`options.txt` is applied on the next launch, which is why it is not injected at the end of the
+constructor), and one hooks `Minecraft.tick()` to run the held check on the client thread.
+
+The category label and binding name come from `assets/discordia/lang/en_us.json`, so the Controls
+screen shows "Discordia" instead of a raw translation key.
+
+#### Verification
+
+`./verify.sh` exits 0 (94 checks, unchanged). The mod builds and the jar contains both mixins, the
+key class and the lang file. **Not verified:** the binding has not been seen in a running client —
+this machine has no launched game — so the Controls entry, the saved-key round trip and the
+held behaviour still need an in-game look.
+
+
 ## 1.5.1 — 2026-11-24
 
 ### The margin hurdle is gone

@@ -14,7 +14,7 @@ LOADER_VERSION="0.20.1"
 LOADER_URL="https://maven.fabricmc.net/net/fabricmc/fabric-loader/${LOADER_VERSION}/fabric-loader-${LOADER_VERSION}.jar"
 MIXIN_URL="https://repo.spongepowered.org/repository/maven-public/org/spongepowered/mixin/0.8.7/mixin-0.8.7.jar"
 GSON_URL="https://repo1.maven.org/maven2/com/google/code/gson/gson/2.11.0/gson-2.11.0.jar"
-MOD_VERSION="1.5.1"
+MOD_VERSION="1.6.0"
 
 case "$(uname -s)" in
   MINGW*|MSYS*|CYGWIN*) CP_SEP=";" ;;
