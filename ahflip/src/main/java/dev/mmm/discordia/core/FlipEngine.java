@@ -437,19 +437,40 @@ public final class FlipEngine {
                 poolPenalty = 0.8d;
                 poolName = "base item pool";
             }
+            // A full-book scan prices a listing against a pool that contains it; a page-0 or
+            // fast-lane scan prices it against a cached book that does not, plus whatever else
+            // arrived in the same scan. Both sides are kept so the anchor means the same thing in
+            // every lane.
+            List<MarketSnapshot.Listing> exactListings = referenceBook.listingsByKey.get(entry.getKey());
+            List<Double> snapshotPrices = new ArrayList<>(listings.size());
+            for (MarketSnapshot.Listing sibling : listings) {
+                snapshotPrices.add(sibling.price());
+            }
+            snapshotPrices.sort(Comparator.naturalOrder());
             // Pets are priced at their actual rarity: MarketSnapshot has already mapped a Tier
             // Boost to petInfo.tier (one lower than the displayed auction tier).
             // Pool health is measured once per key. Whether a particular listing may be priced
             // from it is decided per listing, because realized sales can lower the listing floor.
             double poolMedian = prices.isEmpty() ? 0d : percentile(prices, 0.5);
             boolean poolSpreadOk = poolMedian > 0d && relativeSpread(prices) <= config.maxRelativeSpread;
-            boolean poolReady = prices.size() >= config.minAuctionListings && poolSpreadOk;
-            double poolConfidence = poolReady ? confidence(prices) * poolPenalty : 0d;
+            // The listing being scored belongs to the pool even when the cached book predates it.
+            // Counting only the cached prices would make a 6-listing book look like 5 listings to
+            // the live lanes alone, and a flip would be priced by the full scan and refused by the
+            // fast lane for no reason the market can explain.
+            int newcomers = 0;
+            for (MarketSnapshot.Listing listing : listings) {
+                if (!containsListing(exactListings, listing.uuid())) {
+                    newcomers++;
+                }
+            }
+            int poolSize = prices.size() + newcomers;
+            boolean poolReady = poolSize >= config.minAuctionListings && poolSpreadOk;
+            double poolConfidence = poolReady ? confidence(prices, poolSize) * poolPenalty : 0d;
             // A rescued thin pool keeps the same spread and support bars as a wide one; only the
             // number of listings needed to price from it moves.
             double thinConfidence = !poolReady && poolSpreadOk
-                    && prices.size() >= Math.max(2, config.minVariantListingsWithSales)
-                    ? confidence(prices) * poolPenalty : 0d;
+                    && poolSize >= Math.max(2, config.minVariantListingsWithSales)
+                    ? confidence(prices, poolSize) * poolPenalty : 0d;
 
 
             for (MarketSnapshot.Listing listing : listings) {
@@ -498,11 +519,21 @@ public final class FlipEngine {
                         && prices.size() >= Math.max(2, config.minVariantListingsWithSales));
 
                 // Resale must be an actual listing you can undercut, not a quartile. If anyone is
-                // cheaper than this listing, or the next listing is too close, there is no flip.
-                double listingAnchor = priced ? resaleAnchor(prices, listing.price()) : 0d;
+                // cheaper than this listing, or another copy already sits at this price, there is
+                // no flip. Both the cached pool and the rest of this scan are checked, so a live
+                // scan and a cached book cannot disagree about who is cheapest.
+                double listingAnchor = priced
+                        ? resaleAnchor(prices, snapshotPrices, listing.price(),
+                        containsListing(exactListings, listing.uuid()))
+                        : 0d;
                 int anchorSupport = priced ? supportCount(prices, listingAnchor) : 0;
                 if (priced && listingAnchor <= 0d) {
-                    rejections.count(Rejections.Reason.NO_ANCHOR);
+                    // "Somebody already beats me" and "I am the only copy, with nothing above me
+                    // to undercut" are different problems with different fixes, so they carry
+                    // different codes.
+                    rejections.count(stuckAtTop(prices, snapshotPrices, listing.price(),
+                            containsListing(exactListings, listing.uuid()))
+                            ? Rejections.Reason.NOT_CHEAPEST : Rejections.Reason.NO_ANCHOR);
                     continue;
                 }
                 if (priced && anchorSupport < config.minAuctionSupport) {
@@ -952,23 +983,111 @@ public final class FlipEngine {
 
     /**
      * The realistic immediate resale price: 1% under the next-cheapest identical listing.
-     * Returns 0 when this listing is not the cheapest, when another listing has the same price,
-     * or when there is no other listing to undercut.
+     *
+     * <p>Returns 0 when this listing is not the unique cheapest, when another copy already sits at
+     * the same price, or when there is no other listing to undercut.
+     *
+     * <p>Two price lists are needed because the lanes see different things. {@code pool} is the
+     * cached reference pool; {@code snapshotPrices} is every price this scan saw for the same key,
+     * which always includes this listing exactly once. A full-book scan has the listing inside
+     * {@code pool} too ({@code candidateInPool}); a page-0 or fast-lane scan does not. Comparing
+     * only against the cached pool used to make every listing that undercuts the cheapest cached
+     * copy look like the only listing at its price, and the anchor came back as "no next listing",
+     * so those lanes could never announce anything after the first full scan.
      */
-    private static double resaleAnchor(List<Double> sorted, double buyPrice) {
-        int index = 0;
-        if (!sorted.isEmpty() && sorted.get(0) < buyPrice - 1e-6d) {
+    private static double resaleAnchor(List<Double> pool, List<Double> snapshotPrices,
+                                       double buyPrice, boolean candidateInPool) {
+        int poolAtPrice = 0;
+        for (double price : pool) {
+            if (price < buyPrice - 1e-6d) {
+                return 0d;
+            }
+            if (price <= buyPrice + 1e-6d) {
+                poolAtPrice++;
+            }
+        }
+        int siblingsAtPrice = 0;
+        for (double price : snapshotPrices) {
+            if (price < buyPrice - 1e-6d) {
+                return 0d;
+            }
+            if (price <= buyPrice + 1e-6d) {
+                siblingsAtPrice++;
+            }
+        }
+        // The candidate is one of snapshotPrices by construction; do not count it as a rival.
+        siblingsAtPrice--;
+        int poolElsewhere = poolAtPrice - (candidateInPool ? 1 : 0);
+        if (poolElsewhere > 0 || siblingsAtPrice > 0) {
             return 0d;
         }
-        int samePrice = 0;
-        while (index < sorted.size() && Math.abs(sorted.get(index) - buyPrice) <= 1e-6d) {
-            samePrice++;
-            index++;
+        double fromPool = firstPriceAbove(pool, buyPrice);
+        double fromScan = firstPriceAbove(snapshotPrices, buyPrice);
+        double next = fromPool <= 0d ? fromScan
+                : fromScan <= 0d ? fromPool : Math.min(fromPool, fromScan);
+        return next <= 0d ? 0d : next * 0.99d;
+    }
+
+    /** Lowest price strictly above {@code buyPrice} in an ascending list; 0 when there is none. */
+    private static double firstPriceAbove(List<Double> sorted, double buyPrice) {
+        for (double price : sorted) {
+            if (price > buyPrice + 1e-6d) {
+                return price;
+            }
         }
-        if (samePrice != 1 || index >= sorted.size()) {
-            return 0d;
+        return 0d;
+    }
+
+    /** True when there is anything left to undercut, whichever lane the prices came from. */
+    private static double nextPriceAbove(List<Double> pool, List<Double> snapshotPrices, double buyPrice) {
+        double fromPool = firstPriceAbove(pool, buyPrice);
+        double fromScan = firstPriceAbove(snapshotPrices, buyPrice);
+        if (fromPool <= 0d) {
+            return fromScan;
         }
-        return sorted.get(index) * 0.99d;
+        return fromScan <= 0d ? fromPool : Math.min(fromPool, fromScan);
+    }
+
+    /**
+     * True only when this listing is the unique cheapest copy and there is simply nothing above it
+     * to undercut — the one case where "no anchor" is the market's fault rather than a rival's.
+     * Diagnostics only; it never changes a decision.
+     */
+    private static boolean stuckAtTop(List<Double> pool, List<Double> snapshotPrices,
+                                      double buyPrice, boolean candidateInPool) {
+        int poolAtPrice = 0;
+        for (double price : pool) {
+            if (price < buyPrice - 1e-6d) {
+                return false;
+            }
+            if (price <= buyPrice + 1e-6d) {
+                poolAtPrice++;
+            }
+        }
+        int siblingsAtPrice = 0;
+        for (double price : snapshotPrices) {
+            if (price < buyPrice - 1e-6d) {
+                return false;
+            }
+            if (price <= buyPrice + 1e-6d) {
+                siblingsAtPrice++;
+            }
+        }
+        int elsewhere = poolAtPrice - (candidateInPool ? 1 : 0) + Math.max(0, siblingsAtPrice - 1);
+        return elsewhere <= 0 && nextPriceAbove(pool, snapshotPrices, buyPrice) <= 0d;
+    }
+
+    /** True when the cached pool already holds this exact auction. */
+    private static boolean containsListing(List<MarketSnapshot.Listing> pool, String uuid) {
+        if (pool == null || uuid == null || uuid.isEmpty()) {
+            return false;
+        }
+        for (MarketSnapshot.Listing listing : pool) {
+            if (uuid.equalsIgnoreCase(listing.uuid())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Listings within 10% of the anchor: one lonely next price is not a market. */
@@ -1034,7 +1153,15 @@ public final class FlipEngine {
 
     /** Higher when there are many listings and prices agree. */
     static double confidence(List<Double> sorted) {
-        int n = sorted.size();
+        return confidence(sorted, sorted.size());
+    }
+
+    /**
+     * Confidence for a pool whose cached prices are incomplete: {@code size} is how many listings
+     * the pool really holds, which is what the sample score should reward.
+     */
+    static double confidence(List<Double> sorted, int size) {
+        int n = Math.max(1, size);
         double median = percentile(sorted, 0.5);
         if (median <= 0) {
             return 0d;
@@ -1043,7 +1170,7 @@ public final class FlipEngine {
         for (double price : sorted) {
             mad += Math.abs(price - median);
         }
-        mad /= n;
+        mad /= Math.max(1, sorted.size());
         double relativeSpread = mad / median;
         // A five-listing book is too small to verify independently; six is the floor used by
         // minAuctionListings. The score still rewards larger, tighter books.

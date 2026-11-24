@@ -189,7 +189,7 @@ means reading the in-game auction house UI, which is automation and against Hypi
 ```
 
 First run downloads the 26.2 client jar, Fabric Loader, Gson and Minecraft's library set into
-`.tooling/` and `libs/` (gitignored). Output: `build/libs/discordia-1.1.0.jar`.
+`.tooling/` and `libs/` (gitignored). Output: `build/libs/discordia-1.2.0.jar`.
 
 Install: Fabric Loader 0.20.1+ profile for 26.2, drop the jar in `.minecraft/mods`. No Fabric API
 dependency.
@@ -587,6 +587,52 @@ The console prints the same counts (`FlipConsole`), and `verify.sh` asserts them
 | `LOW_CONFIDENCE` | not enough agreeing evidence for the target |
 | `CAPITAL_TRAP` / `RISK_ADJUSTED` | the hold is too long, or expected value is not positive |
 
+## Why the feed went quiet after the first scan (fixed in 1.2.0)
+
+A live scan prices a listing against a cached book that does **not** contain it; a full scan prices
+it against one that does. The anchor rule required exactly one copy at the listing's price, and read
+"not the cheapest" as "no flip". In a live scan the candidate's own entry was missing, so its anchor
+came back as *"nobody is at this price, and there is no next listing"* for **every** underpriced
+listing — which is every listing that could ever be a flip.
+
+The symptom was exactly the reported one: the first full book produced a handful of flips, and then
+the page-0 and SkyCofl lanes were silent forever, because no candidate in either lane could clear
+the anchor. `NO_ANCHOR` counted every one of them, which blamed the market for a scanner bug.
+
+`resaleAnchor` now takes both sides — the cached pool and the prices this scan itself saw — and
+`candidateInPool` says whether the cached book already holds the auction. It returns 0 only when a
+competing copy really is cheaper or really does sit at the same price. The pool **count** behind the
+listing floor and the confidence score is corrected the same way, so a 6-listing book does not look
+like 5 listings to a live lane. Page 0 and a full scan now agree on the buy price and the target,
+and `AlgorithmGuardProbe` asserts that parity, plus two live copies at one price (both refused) and
+a live listing above the cached cheapest (refused).
+
+Two reason codes now separate the failures that used to share one: `NO_ANCHOR` means another copy
+beats this listing, and `NOT_CHEAPEST` means it is the only copy with nothing above it.
+
+## Speed: what is left after the fix
+
+Latency from Hypixel publishing a listing to the chat line, measured against a live API:
+
+| Step | Measured |
+|---|---|
+| heartbeat poll interval | ≤ 2 s (was 5 s) |
+| `/auctions_ended` request | 28–37 ms warm, 419 ms cold |
+| page-0 request | 70–96 ms |
+| page-0 parse | 80–140 ms |
+| announcement pulse | ≤ 1 s |
+
+A new page-0 listing therefore reaches chat about **3 s** after Hypixel publishes the tick, instead
+of about 6 s. The SkyCofl lane polls every 2 s and can be quicker than the page-0 path, but it needs
+one auction-detail request per candidate, which the shared budget paces at 50/minute.
+
+What cannot be bought: Hypixel publishes no listing before its own market tick (about once a
+minute), and every player polling the same public endpoints sees the same listing at the same
+moment. No setting makes this client "first to every flip". Anything that would — reading the
+auction-house UI, polling past the published rate limits, or buying automatically — is either
+automation against Hypixel's rules or a rate-limit ban. The honest edge is in the filters, not on
+the wire.
+
 ## Sale statistics
 
 There are two layers:
@@ -691,6 +737,11 @@ the SkyCofl summary cache; local exact-variant history remains the second layer.
   fields the client now requires, rather than silently accepting a schema break. The live check
   on 2026-11-24 returned HTTP 200 for `TITANIUM_RING` (199 sales, median 7,999,999, 28.429/day)
   and `PET_LION` (1,867 sales at the second check, median 24,000,000, 266.714/day).
+- Lane-parity probe (2026-11-24, live): with a 36,000-listing book, three consecutive page-0
+  scans produced **0 flips before the fix** — the anchor rejected 100% of underpriced listings
+  because the candidate was absent from the cached pool it was priced against — and a real flip
+  after it (Royal Titanium Cloak 5.00M -> 5.74M). A live scan and a full scan now produce
+  identical buy prices and targets for the same listing.
 - Full reproducible check: `./verify.sh` runs the build and all four offline probes.
 - Algorithm guard probe (2026-11-24):
   `java -cp "build/classes;libs/gson.jar" dev.mmm.discordia.tools.AlgorithmGuardProbe`
@@ -710,7 +761,7 @@ the SkyCofl summary cache; local exact-variant history remains the second layer.
   book gives `SCROLL_UNAVAILABLE`, and 30M + 6M scrolls over a 34M cap gives `OVER_BUDGET`; a
   three-listing book backed by five realized sales is priced while the same book without sales
   gives `THIN_POOL`; and two sales a month over a six-listing pool gives `CAPITAL_TRAP`.
-- Build on this machine: `ahflip/build.sh` produced `build/libs/discordia-1.1.0.jar` against the
+- Build on this machine: `ahflip/build.sh` produced `build/libs/discordia-1.2.0.jar` against the
   real 26.2 client jar, and `collector/build.sh` produced `collector/build/classes`.
   `GlobalGateProbe`, `GlobalFailureProbe` and `CoflContractProbe` all still pass, and `./verify.sh`
   (all four probes) exits 0. The build script now falls back to `python3` when `node` is absent,

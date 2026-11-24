@@ -21,8 +21,10 @@ public final class Rejections {
 
     /** Stable reason codes. Add new values at the end; never renumber or rename silently. */
     public enum Reason {
-        /** Another copy is cheaper, this price is duplicated, or there is nothing to undercut. */
+        /** Another copy is cheaper, or this exact price is listed twice. */
         NO_ANCHOR,
+        /** This is the most expensive copy in its pool: there is nothing above it to undercut. */
+        NOT_CHEAPEST,
         /** The pool around the resale anchor is too thin to be a market. */
         THIN_SUPPORT,
         /** The book is too thin to price from and no attribute comparables exist either. */

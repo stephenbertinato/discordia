@@ -38,7 +38,7 @@ cd ahflip
 
 The first build downloads the Minecraft client and the required compile-time libraries into
 `.tooling/` and `libs/`; those directories are gitignored. The finished mod is written to
-`ahflip/build/libs/discordia-1.1.0.jar`.
+`ahflip/build/libs/discordia-1.2.0.jar`.
 
 Install it in the `.minecraft/mods` directory of a Fabric 26.2 profile. There is no Fabric API
 dependency.
@@ -51,8 +51,8 @@ cd ahflip
 ```
 
 This builds the mod and runs the deterministic offline probes: the global-sales failure matrix, the
-global zero/alias gate, the Cofl contract check, and `AlgorithmGuardProbe` — 59 assertions covering
-the fee brackets, the anchor and support rules, the thin-sample manipulation guard, the
+global zero/alias gate, the Cofl contract check, and `AlgorithmGuardProbe` — 67 assertions covering
+the fee brackets, the anchor and support rules, page-0/full-scan parity, the thin-sample manipulation guard, the
 plain-item weekly-median gate, the recombobulator and Wither-scroll ceilings, the conservative exit
 floor, the hold horizon and the rejection reason codes.
 

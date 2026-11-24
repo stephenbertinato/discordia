@@ -1,5 +1,62 @@
 # Changelog
 
+## 1.2.0 — 2026-11-24
+
+### The page-0 and SkyCofl lanes were silent, and `NO_ANCHOR` blamed the market
+
+This is the fix for "I got a few flips when I joined and nothing for ten minutes".
+
+A full scan prices a listing against a book that **contains** it. A page-0 scan, and a SkyCofl fast
+lane, price the same listing against a **cached** book that does not. The anchor rule demanded
+exactly one copy at the listing's price and treated a missing next price as "no flip", so in the
+live lanes:
+
+- the candidate's own entry was absent, so it never looked like the cheapest copy at its price;
+- `resaleAnchor` returned 0 for **every** underpriced listing — that is, for every listing that
+  could ever have been a flip;
+- the live lanes could therefore never announce anything, however long you played.
+
+The only flips you ever saw were the ones from the first full book. After that the feed was dead
+by construction, and the reason codes reported a healthy-looking `NO_ANCHOR` for all of it.
+
+Fixed by making the anchor lane-aware:
+
+- `resaleAnchor` now takes the cached pool **and** the prices the current scan saw, and
+  `candidateInPool` says whether the cached book already holds this auction. It returns 0 only
+  when a rival copy really is cheaper, or really does sit at the same price.
+- The pool **count** behind the listing floor and the confidence score counts listings the cached
+  book has not seen yet, so a 6-listing book no longer looks like 5 listings to a live lane.
+- `NO_ANCHOR` (another copy beats this listing) and `NOT_CHEAPEST` (it is the only copy, with
+  nothing above it) are now separate codes, so the two failures are distinguishable.
+
+Verified live, and asserted offline: `AlgorithmGuardProbe` gains a lane-parity section — a page-0
+scan and a full scan must agree on both the buy price and the target, two copies at one price in
+one live scan must both be refused, and a live listing above the cached cheapest must be refused.
+67 checks, `verify.sh` exits 0. Three consecutive page-0 scans against a 36,000-listing book went
+from **0 flips before the fix** to a real flip after it.
+
+### Faster, honestly
+
+- The heartbeat interval is now **2 s** (was 5 s). It is a 68 KB request, so the extra cost is
+  about 2 MB/hour, and it is what bounds how quickly a new market tick is noticed.
+- Measured latency from Hypixel publishing to the chat line: heartbeat request 28–37 ms warm
+  (419 ms cold), page-0 request 70–96 ms, page-0 parse 80–140 ms, announcement pulse ≤ 1 s. A new
+  listing now reaches chat about **3 s** after the tick, instead of about 6 s.
+
+Two things this release deliberately does **not** do, because they are not available:
+
+- It does not make you first to every flip. Hypixel publishes no listing before its own market
+  tick, and everyone polling the same public endpoints sees a listing at the same moment. Buying
+  before other players requires reading the auction-house UI or buying automatically, which is
+  automation against Hypixel's rules and is exactly what this mod refuses to do.
+- It does not lower the safety gates to manufacture more alerts. The page-0 lane now finds what
+  the full scan finds; it does not find things the gates would reject.
+
+Version 1.2.0. Artifact: `ahflip/build/libs/discordia-1.2.0.jar`.
+
+
+# Changelog
+
 ## 1.1.0 — 2026-11-24
 
 An algorithm release. Every change here either refuses a flip the engine used to announce or finds

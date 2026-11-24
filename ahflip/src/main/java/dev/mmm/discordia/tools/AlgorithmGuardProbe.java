@@ -44,6 +44,7 @@ public final class AlgorithmGuardProbe {
         aBidIsNeverABinPrice();
         riskModel();
         anchorGuards();
+        laneParity();
         thinSampleManipulation();
         thickSalesArePricedConservatively();
         plainGlobalGates();
@@ -205,6 +206,64 @@ public final class AlgorithmGuardProbe {
         check(engine.rejections().get(Rejections.Reason.THIN_SUPPORT) >= 1,
                 "a lonely anchor must be reported as THIN_SUPPORT");
         System.out.println("PASS lonely 40M next listing with nothing near it: THIN_SUPPORT");
+    }
+
+    /**
+     * The three lanes must agree. A full-book scan prices a listing against a pool that contains
+     * it; page 0 and the SkyCofl fast lane price the same listing against a cached book that does
+     * not. When those disagree, the mod announces a batch on the first full scan and then goes
+     * silent, because every undercutting listing in the live lanes is thrown away as "no anchor".
+     */
+    private static void laneParity() {
+        section("page-0 and fast-lane parity");
+        SoldStats sold = new SoldStats();
+        seedGlobal(sold, "LANE_RING", 10_000_000d, 20d);
+        FlipConfig config = base();
+
+        Book book = new Book();
+        book.add("lane-cheap", "Lane Ring", "RARE", plain("LANE_RING"), 8_000_000d);
+        for (int i = 0; i < 5; i++) {
+            book.add("lane-dear-" + i, "Lane Ring", "RARE", plain("LANE_RING"), 11_000_000d);
+        }
+        MarketSnapshot reference = book.build();
+
+        List<Flip> full = new FlipEngine().compute(reference, reference, config, sold, null, null).auctions();
+        check(full.size() == 1, "the full book must price the cheap copy exactly once");
+
+        MarketSnapshot page0 = MarketSnapshot.ofListings(List.of(book.get("lane-cheap")),
+                System.currentTimeMillis(), Map.of());
+        check(page0.auctionCount == 1, "the page-0 fixture must hold exactly one listing");
+        List<Flip> live = new FlipEngine().compute(page0, reference, config, sold, null, null).auctions();
+        check(live.size() == 1,
+                "a live page-0 scan that undercuts the cached cheapest must still be a flip");
+        close(live.get(0).targetPrice(), full.get(0).targetPrice(), 1d,
+                "a page-0 scan and a full scan must agree on the target");
+        close(live.get(0).buyPrice(), full.get(0).buyPrice(), 1d,
+                "a page-0 scan and a full scan must agree on the buy price");
+        System.out.println("PASS page-0 and full-book scan price the same listing identically");
+
+        // Two sellers listing the same item at the same price in one scan: neither is unique.
+        Book twins = new Book();
+        twins.add("twin-a", "Lane Ring", "RARE", plain("LANE_RING"), 8_000_000d);
+        twins.add("twin-b", "Lane Ring", "RARE", plain("LANE_RING"), 8_000_000d);
+        MarketSnapshot twinSnapshot = MarketSnapshot.ofListings(twins.all(),
+                System.currentTimeMillis(), Map.of());
+        FlipEngine engine = new FlipEngine();
+        List<Flip> twinFlips = engine.compute(twinSnapshot, reference, config, sold, null, null).auctions();
+        check(twinFlips.isEmpty(), "two copies at the same price in one live scan must both be refused");
+        check(engine.rejections().get(Rejections.Reason.NO_ANCHOR) == 2,
+                "a live duplicate price must be reported as NO_ANCHOR");
+        System.out.println("PASS two live copies at the same price: 2 x NO_ANCHOR");
+
+        // A listing that is dearer than the cached cheapest is not a flip in any lane.
+        Book dearer = new Book();
+        dearer.add("dearer", "Lane Ring", "RARE", plain("LANE_RING"), 9_000_000d);
+        MarketSnapshot dearerSnapshot = MarketSnapshot.ofListings(dearer.all(),
+                System.currentTimeMillis(), Map.of());
+        engine = new FlipEngine();
+        twinFlips = engine.compute(dearerSnapshot, reference, config, sold, null, null).auctions();
+        check(twinFlips.isEmpty(), "a live listing above the cached cheapest must be refused");
+        System.out.println("PASS a live listing above the cached cheapest: refused");
     }
 
     /** A 1-4 sale sample cannot project a resale price many times above what the item clears at. */
@@ -527,6 +586,24 @@ public final class AlgorithmGuardProbe {
         Book bazaar(MarketSnapshot.BazaarQuote quote) {
             bazaar.put(quote.id(), quote);
             return this;
+        }
+
+        /** Every listing in the book, in insertion order. */
+        List<MarketSnapshot.Listing> all() {
+            List<MarketSnapshot.Listing> out = new ArrayList<>();
+            for (List<MarketSnapshot.Listing> group : byKey.values()) {
+                out.addAll(group);
+            }
+            return out;
+        }
+
+        MarketSnapshot.Listing get(String uuid) {
+            for (MarketSnapshot.Listing listing : all()) {
+                if (listing.uuid().equals(uuid)) {
+                    return listing;
+                }
+            }
+            throw new IllegalArgumentException("no listing " + uuid + " in the probe book");
         }
 
         MarketSnapshot build() {
