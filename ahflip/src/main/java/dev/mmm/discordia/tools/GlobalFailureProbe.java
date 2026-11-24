@@ -216,7 +216,10 @@ public final class GlobalFailureProbe {
                     "fault injection was not visible in source health");
             fault.setFaultMode(GlobalSales.FaultMode.UNAVAILABLE);
             fault.requestPriority("FAULT404_RING", "FAULT404_RING");
-            waitForState(faultSold, "FAULT404_RING", 2_000L, SoldStats.Stats::unavailable);
+            // The loop is still sleeping off the injected timeout above (FAULT_RETRY_MS is 2 s and
+            // the timeout path also sleeps that long before the next poll), so this wait has to be
+            // wider than one retry cycle. The assertion is unchanged; only the harness is patient.
+            waitForState(faultSold, "FAULT404_RING", 8_000L, SoldStats.Stats::unavailable);
             check(faultSold.stats("FAULT404_RING").unavailable(),
                     "fault injection did not mark unavailable");
             fault.setFaultMode(GlobalSales.FaultMode.NONE);

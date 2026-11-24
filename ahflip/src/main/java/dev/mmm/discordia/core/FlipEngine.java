@@ -19,12 +19,30 @@ import java.util.Set;
  *       Pets use their actual `petInfo.tier`. Items with no comparable sale must clear the
  *       higher book-only bar and are labeled as unverified. Plain items must also agree with
  *       Cofl's weekly median; a pumped active ask cannot become the target.</li>
+ *   <li>Profit is booked at a conservative exit (see {@link RiskModel}): the ask after a
+ *       drift/relist reserve, and never above the realized p25 once there are enough sales. A
+ *       candidate that only profits at the optimistic ask is refused.</li>
+ *   <li>A hold time beyond the configured horizon is a capital trap and is refused, however large
+ *       the headline profit; an unknown hold time widens the margin requirement instead.</li>
+ *   <li>Every refusal increments a {@link Rejections} reason code, so an empty result can be told
+ *       apart from a broken one.</li>
  * </ul>
  */
 public final class FlipEngine {
 
     public record Result(List<Flip> bazaar, List<Flip> auctions, List<Flip> deterministic,
                          List<Flip> sniping) {
+    }
+
+    private final Rejections rejections = new Rejections();
+
+    /** Why candidates were not shown, accumulated since the last {@link #resetRejections()}. */
+    public Rejections rejections() {
+        return rejections;
+    }
+
+    public void resetRejections() {
+        rejections.clear();
     }
 
     public Result compute(MarketSnapshot snapshot, FlipConfig config) {
@@ -95,18 +113,22 @@ public final class FlipEngine {
                 penalty = 0.8d;
             }
             if (prices.size() < config.minSnipeListings) {
+                rejections.count(Rejections.Reason.THIN_POOL);
                 continue;
             }
             double median = percentile(prices, 0.5);
             if (median <= 0 || relativeSpread(prices) > config.maxRelativeSpread) {
+                rejections.count(Rejections.Reason.WIDE_SPREAD);
                 continue;
             }
             double target = percentile(prices, config.auctionReferenceQuantile);
             if (target <= 0) {
+                rejections.count(Rejections.Reason.NO_TARGET);
                 continue;
             }
             double confidence = confidence(prices) * penalty;
             if (confidence < config.minSnipeConfidence) {
+                rejections.count(Rejections.Reason.LOW_CONFIDENCE);
                 continue;
             }
 
@@ -120,6 +142,7 @@ public final class FlipEngine {
                 // require it here; BIN entries still require it before they can be shown.
                 if (weekly.count() >= config.minGlobalSalesForPriceGuard && weekly.median() > 0d) {
                     if (bid > weekly.median() * config.maxBuyOverGlobalMedian) {
+                        rejections.count(Rejections.Reason.BUY_ABOVE_GLOBAL);
                         continue;
                     }
                     double weeklyTargetCap = weekly.median() * config.maxTargetOverGlobalMedian;
@@ -129,17 +152,27 @@ public final class FlipEngine {
                     }
                 }
             }
+            // A bid is not a purchase and a BIN reference is not this auction's resale price:
+            // reserve the same drift/relist buffer the BIN path uses.
+            target = RiskModel.conservativeGross(target, 0d, config.riskBufferPct);
+            if (target <= 0d) {
+                rejections.count(Rejections.Reason.NO_TARGET);
+                continue;
+            }
             double net = Tax.ahNet(target);
             double maxBid = net - config.minSnipeProfit;
             if (maxBid <= bid) {
+                rejections.count(Rejections.Reason.MARGIN);
                 continue;
             }
             double profit = net - bid;
             if (profit < config.minSnipeProfit) {
+                rejections.count(Rejections.Reason.MIN_PROFIT);
                 continue;
             }
             double margin = profit / bid * 100d;
             if (margin < config.minSnipeMarginPct) {
+                rejections.count(Rejections.Reason.MARGIN);
                 continue;
             }
 
@@ -406,33 +439,22 @@ public final class FlipEngine {
             }
             // Pets are priced at their actual rarity: MarketSnapshot has already mapped a Tier
             // Boost to petInfo.tier (one lower than the displayed auction tier).
-            boolean poolReady = prices.size() >= config.minAuctionListings;
-            double confidence = 0d;
-            if (poolReady) {
-                double median = percentile(prices, 0.5);
-                if (median <= 0 || relativeSpread(prices) > config.maxRelativeSpread) {
-                    poolReady = false;
-                } else {
-                    confidence = confidence(prices) * poolPenalty;
-                }
-            }
-            if (!poolReady) {
-                // The book is too thin to price from; only evidenced attribute comparables can.
-                poolName = "attribute comparables";
-            }
+            // Pool health is measured once per key. Whether a particular listing may be priced
+            // from it is decided per listing, because realized sales can lower the listing floor.
+            double poolMedian = prices.isEmpty() ? 0d : percentile(prices, 0.5);
+            boolean poolSpreadOk = poolMedian > 0d && relativeSpread(prices) <= config.maxRelativeSpread;
+            boolean poolReady = prices.size() >= config.minAuctionListings && poolSpreadOk;
+            double poolConfidence = poolReady ? confidence(prices) * poolPenalty : 0d;
+            // A rescued thin pool keeps the same spread and support bars as a wide one; only the
+            // number of listings needed to price from it moves.
+            double thinConfidence = !poolReady && poolSpreadOk
+                    && prices.size() >= Math.max(2, config.minVariantListingsWithSales)
+                    ? confidence(prices) * poolPenalty : 0d;
 
 
             for (MarketSnapshot.Listing listing : listings) {
                 if (listing.price() > maxCost) {
-                    continue;
-                }
-
-                // Resale must be an actual listing you can undercut, not a quartile. If anyone is
-                // cheaper than this listing, or the next listing is too close, there is no flip.
-                double listingAnchor = poolReady ? resaleAnchor(prices, listing.price()) : 0d;
-                int anchorSupport = poolReady ? supportCount(prices, listingAnchor) : 0;
-                if (poolReady && (listingAnchor <= 0d
-                        || anchorSupport < config.minAuctionSupport)) {
+                    rejections.count(Rejections.Reason.OVER_BUDGET);
                     continue;
                 }
 
@@ -464,7 +486,36 @@ public final class FlipEngine {
                 }
                 List<Double> variantPrices = exactReforgePrices.isEmpty()
                         ? similarReforgePrices : exactReforgePrices;
+                variantPrices.sort(Comparator.naturalOrder());
                 boolean bookOnly = variantPrices.size() < config.minAuctionSalesForFlip;
+                boolean thickSales = variantPrices.size() >= config.fullSalesTrust;
+
+                // A rare item can trade more often than it is listed, which is the one case where a
+                // thin book is still a usable reference. Realized sales lower the listing floor;
+                // they never lower the spread, support or anchor bars below it.
+                boolean priced = poolReady
+                        || (thickSales && poolSpreadOk
+                        && prices.size() >= Math.max(2, config.minVariantListingsWithSales));
+
+                // Resale must be an actual listing you can undercut, not a quartile. If anyone is
+                // cheaper than this listing, or the next listing is too close, there is no flip.
+                double listingAnchor = priced ? resaleAnchor(prices, listing.price()) : 0d;
+                int anchorSupport = priced ? supportCount(prices, listingAnchor) : 0;
+                if (priced && listingAnchor <= 0d) {
+                    rejections.count(Rejections.Reason.NO_ANCHOR);
+                    continue;
+                }
+                if (priced && anchorSupport < config.minAuctionSupport) {
+                    rejections.count(Rejections.Reason.THIN_SUPPORT);
+                    continue;
+                }
+
+                // Realized sales are the strongest evidence there is, so they carry confidence on
+                // their own when the book is too thin to say anything about the target.
+                double evidenceConfidence = thickSales ? Math.min(1d, variantPrices.size() / 10d) : 0d;
+                double listingConfidence = Math.max(evidenceConfidence,
+                        priced ? (poolReady ? poolConfidence : thinConfidence) : 0d);
+
                 double salesMedian = 0d;
                 double target;
                 String reforgeEvidence;
@@ -473,14 +524,34 @@ public final class FlipEngine {
                     // book gaps, require a deep book, and label them clearly as book-only.
                     double bookProfit = Tax.ahProfit(listing.price(), listingAnchor);
                     double bookMargin = bookProfit / listing.price() * 100d;
-                    if (!config.bookOnlyFlips
-                            || !poolReady
-                            || poolName.equals("base item pool")
-                            || (!realized.pending() && !realized.unavailable() && realized.count() == 0)
-                            || anchorSupport < config.bookOnlyMinSupport
-                            || confidence < config.bookOnlyMinConfidence
-                            || bookProfit < config.bookOnlyMinProfit
+                    if (!config.bookOnlyFlips) {
+                        rejections.count(Rejections.Reason.BOOK_ONLY_DISABLED);
+                        continue;
+                    }
+                    if (!priced) {
+                        rejections.count(poolSpreadOk
+                                ? Rejections.Reason.THIN_POOL : Rejections.Reason.WIDE_SPREAD);
+                        continue;
+                    }
+                    if (poolName.equals("base item pool")) {
+                        rejections.count(Rejections.Reason.MIXED_POOL);
+                        continue;
+                    }
+                    if (!realized.pending() && !realized.unavailable() && realized.count() == 0) {
+                        rejections.count(Rejections.Reason.NO_SALES);
+                        continue;
+                    }
+                    if (anchorSupport < config.bookOnlyMinSupport) {
+                        rejections.count(Rejections.Reason.THIN_SUPPORT);
+                        continue;
+                    }
+                    if (listingConfidence < config.bookOnlyMinConfidence) {
+                        rejections.count(Rejections.Reason.LOW_CONFIDENCE);
+                        continue;
+                    }
+                    if (bookProfit < config.bookOnlyMinProfit
                             || bookMargin < config.bookOnlyMinMarginPct) {
+                        rejections.count(Rejections.Reason.MIN_PROFIT);
                         continue;
                     }
                     target = listingAnchor;
@@ -491,22 +562,23 @@ public final class FlipEngine {
                             : "book only, no same-variant sale";
                 } else {
                     if (realized.count() == 0 || realized.perDay() < config.minAuctionSalesPerDay) {
+                        rejections.count(realized.count() == 0
+                                ? Rejections.Reason.NO_SALES : Rejections.Reason.LOW_VOLUME);
                         continue;
                     }
                     reforgeEvidence = exactReforgePrices.isEmpty() ? "similar reforge" : "same reforge";
-                    variantPrices.sort(Comparator.naturalOrder());
                     salesMedian = percentile(variantPrices, 0.5);
-                    boolean thick = variantPrices.size() >= config.fullSalesTrust;
                     // A 1-4 sale median is not a market; use the next real listing as the target and
                     // demand a larger margin instead. A thick sample uses the sales median itself.
-                    target = thick ? salesMedian * 0.98d : listingAnchor;
-                    if (!thick && salesMedian > 0d
+                    target = thickSales ? salesMedian * 0.98d : listingAnchor;
+                    if (!thickSales && salesMedian > 0d
                             && target > salesMedian * config.maxThinAnchorOverSales) {
                         // The next listing is many times the realized price; that is a manipulated or
                         // stale ask, not a resale target.
+                        rejections.count(Rejections.Reason.MANIPULATED_ANCHOR);
                         continue;
                     }
-                    if (poolReady) {
+                    if (priced) {
                         target = Math.min(target, listingAnchor);
                     }
                 }
@@ -524,6 +596,8 @@ public final class FlipEngine {
                         if (config.requireGlobalPriceForPlainFlips) {
                             // A plain item with only a thin or pending weekly summary is exactly
                             // where a pumped first-page ask can become a false "best flip".
+                            rejections.count(realized.pending() || realized.unavailable()
+                                    ? Rejections.Reason.GLOBAL_PENDING : Rejections.Reason.GLOBAL_ZERO);
                             continue;
                         }
                     } else {
@@ -533,6 +607,7 @@ public final class FlipEngine {
                                 ? config.maxBuyOverGlobalMedianWithSales
                                 : config.maxBuyOverGlobalMedian;
                         if (listing.price() > weekly.median() * buyMultiple) {
+                            rejections.count(Rejections.Reason.BUY_ABOVE_GLOBAL);
                             continue;
                         }
                         double weeklyTargetCap = weekly.median() * config.maxTargetOverGlobalMedian;
@@ -550,6 +625,7 @@ public final class FlipEngine {
                         double recombedTarget = recombed.get(0) * 0.99d;
                         double recombedNet = Tax.ahNet(recombedTarget) - recombCost;
                         if (recombedNet <= 0d) {
+                            rejections.count(Rejections.Reason.RECOMB_CEILING);
                             continue;
                         }
                         recombCeiling = Tax.grossForNet(recombedNet);
@@ -577,10 +653,19 @@ public final class FlipEngine {
                         scrollCost += fill.total();
                     }
                     if (!buyable) {
+                        rejections.count(Rejections.Reason.SCROLL_UNAVAILABLE);
+                        continue;
+                    }
+                    // The scrolls are capital, not a discount. A cheap partial blade whose missing
+                    // scrolls cost more than the whole item cap is not affordable even when the
+                    // listing itself is.
+                    if (listing.price() + scrollCost > maxCost) {
+                        rejections.count(Rejections.Reason.OVER_BUDGET);
                         continue;
                     }
                     List<Double> full = fullBladePrices.get(bladeKey(listing));
                     if (full == null || full.isEmpty()) {
+                        rejections.count(Rejections.Reason.NO_FULL_BLADE);
                         continue;
                     }
                     fullBladeAnchor = full.get(0) * 0.99d;
@@ -591,6 +676,7 @@ public final class FlipEngine {
                     target = Math.min(target, Tax.grossForNet(fullNet));
                 }
                 if (target <= 0d) {
+                    rejections.count(Rejections.Reason.NO_TARGET);
                     continue;
                 }
 
@@ -615,47 +701,27 @@ public final class FlipEngine {
                     effectiveTarget = recombCeiling;
                     recombCapped = true;
                 }
-                // A percentage margin is the wrong gate for expensive items. A 380M pet at 2%
-                // is a 5.9M flip, which is better than a 600k flip at 14%; let absolute profit
-                // carry the trade when the percentage is thin but the sales support it.
-                double projectedProfit = Tax.ahProfit(listing.price(), effectiveTarget);
-                if (listing.price() > effectiveTarget * (1d - config.minMarginPct / 100d)
-                        && projectedProfit < config.largeProfitOverride) {
+
+                // --- Conservative exit --------------------------------------------------------
+                // The ask is not the price you get. Every accepted flip must still be profitable
+                // at a lower bound: the ask after a drift/relist/slippage reserve, and never above
+                // the realized p25 once there are enough sales to measure one. Profit is booked at
+                // that floor, not at the optimistic ask, so an alert cannot depend on getting the
+                // best possible exit.
+                double lowerBound = thickSales
+                        ? RiskModel.lowerQuantile(variantPrices, config.conservativeSalesQuantile) : 0d;
+                boolean lowerBoundUsed = lowerBound > 0d && lowerBound < effectiveTarget;
+                double conservativeExit = RiskModel.conservativeGross(effectiveTarget, lowerBound,
+                        config.riskBufferPct);
+                if (conservativeExit <= 0d) {
+                    rejections.count(Rejections.Reason.NO_TARGET);
                     continue;
                 }
 
-                double listingConfidence = attributePlay ? Math.max(confidence, 0.55d) : confidence;
-                if (listingConfidence < config.minConfidence) {
-                    continue;
-                }
-
-                double profit = projectedProfit;
-                if (profit < config.minProfit) {
-                    continue;
-                }
-                double margin = profit / listing.price() * 100d;
-                if (variantPrices.size() < config.fullSalesTrust
-                        && margin < config.thinSalesMarginPct
-                        && profit < config.largeProfitOverride) {
-                    continue;
-                }
-                // A 300% "profit" on a thin book is a trap, not an edge. The wider cap is only
-                // justified when the target itself came from comparable sales; an asking price
-                // is not evidence.
-                double marginCap = marginCap(comparableTarget, config);
-                if (margin > marginCap) {
-                    continue;
-                }
-
-                String volume = realized.pending()
-                        ? "global volume pending (book-only)"
-                        : realized.unavailable()
-                        ? "global volume unavailable (book-only)"
-                        : String.format("%.1f sells/day (%s, n=%d, median %s)",
-                                perDay, reforgeEvidence, variantPrices.size(), coins(salesMedian));
-
-                // Time-to-sell from throughput: Hypixel exposes no join key between a sold auction
-                // and the listing it came from, so (listings + 1) / sales-per-hour is the estimate.
+                // --- Liquidity and hold horizon -----------------------------------------------
+                // A 4M profit on something that sells once a month is a capital trap, not a flip.
+                // Hypixel exposes no join key between a sold auction and the listing it came from,
+                // so (listings + 1) / sales per hour is the Little's-law estimate.
                 double salesPerHour = 0d;
                 if (sold != null) {
                     if (poolName.equals("exact variant")) {
@@ -665,15 +731,90 @@ public final class FlipEngine {
                         salesPerHour = cachedRate(rateCache, sold, listing.skyblockId());
                     }
                 }
-                double minutesToSell = salesPerHour > 0d ? (prices.size() + 1d) / salesPerHour * 60d : 0d;
-                String timing = minutesToSell > 0d
-                        ? String.format("%d listed, %.1f sales/h -> ~%s", prices.size(), salesPerHour, duration(minutesToSell))
+                RiskModel.Liquidity liquidity = RiskModel.liquidity(salesPerHour, prices.size());
+                double holdHours = liquidity.expectedHours();
+                double minutesToSell = holdHours * 60d;
+                double maxHold = bookOnly ? config.maxBookOnlyHoldHours : config.maxHoldHours;
+                if (liquidity.known() && maxHold > 0d && holdHours > maxHold) {
+                    rejections.count(Rejections.Reason.CAPITAL_TRAP);
+                    continue;
+                }
+
+                // --- Fee-inclusive profit at the conservative exit -----------------------------
+                double requiredMargin = Math.max(config.minMarginPct,
+                        thickSales ? 0d : config.thinSalesMarginPct);
+                if (!liquidity.known()) {
+                    // Unknown liquidity is not safe liquidity: widen the return requirement
+                    // instead of pretending the item sells instantly.
+                    requiredMargin += config.unknownLiquidityMarginPremiumPct;
+                }
+                double marginCap = marginCap(comparableTarget, config);
+                requiredMargin = Math.min(requiredMargin, marginCap);
+
+                double profit = Tax.ahNet(conservativeExit) - listing.price();
+                if (profit <= 0d || profit < config.minProfit) {
+                    rejections.count(Rejections.Reason.MIN_PROFIT);
+                    continue;
+                }
+                double margin = profit / listing.price() * 100d;
+                // A percentage margin is the wrong gate for expensive items. A 380M pet at 2%
+                // is a 5.9M flip, which is better than a 600k flip at 14%; let absolute profit
+                // carry the trade when the percentage is thin but the sales support it.
+                if (margin < requiredMargin && profit < config.largeProfitOverride) {
+                    rejections.count(Rejections.Reason.MARGIN);
+                    continue;
+                }
+                // A 300% "profit" on a thin book is a trap, not an edge. The wider cap is only
+                // justified when the target itself came from comparable sales; an asking price
+                // is not evidence.
+                if (margin > marginCap) {
+                    rejections.count(Rejections.Reason.IMPLAUSIBLE_MARGIN);
+                    continue;
+                }
+                if (attributePlay) {
+                    listingConfidence = Math.max(listingConfidence, 0.55d);
+                }
+                if (listingConfidence < config.minConfidence) {
+                    rejections.count(Rejections.Reason.LOW_CONFIDENCE);
+                    continue;
+                }
+
+                // --- Risk-adjusted expectation ------------------------------------------------
+                // Expected profit after the chance of not selling and the cost of the coins locked
+                // up in the meantime. This is what stops "huge headline, impossible hold".
+                double probability = 0d;
+                double riskAdjusted = profit;
+                if (liquidity.known()) {
+                    probability = RiskModel.saleProbability(holdHours, maxHold);
+                    double unsoldCost = RiskModel.unsoldCost(conservativeExit, config.unsoldMarkdownPct);
+                    riskAdjusted = RiskModel.riskAdjustedProfit(profit, probability, unsoldCost,
+                            holdHours, listing.price(), config.capitalChargePerDayPct);
+                    if (config.requirePositiveRiskAdjusted && riskAdjusted <= 0d) {
+                        rejections.count(Rejections.Reason.RISK_ADJUSTED);
+                        continue;
+                    }
+                }
+
+                String volume = realized.pending()
+                        ? "global volume pending (book-only)"
+                        : realized.unavailable()
+                        ? "global volume unavailable (book-only)"
+                        : String.format("%.1f sells/day (%s, n=%d, median %s)",
+                                perDay, reforgeEvidence, variantPrices.size(), coins(salesMedian));
+                String timing = liquidity.known()
+                        ? String.format("%d listed, %.1f sales/h -> ~%s%s",
+                                prices.size(), salesPerHour, duration(minutesToSell),
+                                maxHold > 0d
+                                        ? String.format(", %.0f%% inside %s", probability * 100d,
+                                        duration(maxHold * 60d))
+                                        : "")
                         : realized.pending() ? "pending"
                         : realized.unavailable() ? "unavailable" : "no recent sales";
                 String note = attributePlay && valuation != null ? attributeNote(valuation) + " | " : "";
-                String poolText = poolReady
+                String poolText = priced
                         ? String.format("next of %d BINs", prices.size())
                         : "no book";
+                String poolLabel = priced ? poolName : "attribute comparables";
                 String reforgeNote = !sample.variant().reforge().isEmpty()
                         && !ItemVariant.expensiveReforge(sample.variant().reforge())
                         ? " (cheap reforge pooled)" : "";
@@ -686,6 +827,13 @@ public final class FlipEngine {
                                 missingScrolls, missingScrolls == 1 ? "" : "s",
                                 coins(scrollCost), coins(fullBladeAnchor))
                         : "";
+                // State the floor explicitly: the number the alert is prepared to survive.
+                String safeNote = String.format(" (floor %s%s)",
+                        coins(conservativeExit),
+                        lowerBoundUsed
+                                ? String.format(", p%.0f of %d sales",
+                                config.conservativeSalesQuantile * 100d, variantPrices.size())
+                                : String.format(" after %.1f%% reserve", config.riskBufferPct));
 
                 out.add(new Flip(
                         Flip.Kind.AUCTION,
@@ -700,9 +848,9 @@ public final class FlipEngine {
                         minutesToSell,
                         0d,
                         listingConfidence,
-                        String.format("%s%s [%s]%s%s%s%s %s = %s; %s; %s", note,
-                                sample.variantLabel(), poolName, reforgeNote, recombNote, scrollNote,
-                                globalPriceNote, poolText, coins(effectiveTarget), volume, timing),
+                        String.format("%s%s [%s]%s%s%s%s %s = %s; %s; %s%s", note,
+                                sample.variantLabel(), poolLabel, reforgeNote, recombNote, scrollNote,
+                                globalPriceNote, poolText, coins(effectiveTarget), volume, timing, safeNote),
                         salesMedian
                 ));
             }

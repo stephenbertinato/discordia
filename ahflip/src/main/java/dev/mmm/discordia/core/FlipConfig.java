@@ -64,6 +64,35 @@ public final class FlipConfig {
     public int bookOnlyMinSupport = 2;
     /** Auction: listings near the resale anchor needed to trust that anchor. */
     public int minAuctionSupport = 2;
+    /**
+     * Auction: a lower listing floor is allowed when the exact variant has at least
+     * {@link #fullSalesTrust} realized sales. A rare item can trade more often than it is listed,
+     * and realized sales are stronger evidence than a thin book. Spread, support and anchor bars
+     * never move; only the number of listings needed to price from does.
+     */
+    public int minVariantListingsWithSales = 3;
+    /**
+     * Auction: the hard gate uses this quantile of realized sales instead of the median, when there
+     * are at least {@link #fullSalesTrust} sales to measure it from.
+     */
+    public double conservativeSalesQuantile = 0.25d;
+    /**
+     * Auction: reserve taken off the exit for price drift, a second listing fee and slippage.
+     * Profit is booked after this reserve, not before it.
+     */
+    public double riskBufferPct = 1.5d;
+    /** Auction: maximum expected hold, in hours; 0 disables the gate. */
+    public double maxHoldHours = 168d;
+    /** Book-only flips have no sale evidence for their target, so they get a tighter horizon. */
+    public double maxBookOnlyHoldHours = 72d;
+    /** Percent added to the margin requirement when the hold time is unknown. */
+    public double unknownLiquidityMarginPremiumPct = 2d;
+    /** Markdown assumed when an item has to be relisted to move it. */
+    public double unsoldMarkdownPct = 10d;
+    /** Opportunity cost of coins tied up in a listed item, percent per day. */
+    public double capitalChargePerDayPct = 0.5d;
+    /** Reject a candidate whose expected value after sale risk and locked capital is not positive. */
+    public boolean requirePositiveRiskAdjusted = true;
     /** Fallback Recombobulator cost; overridden by the live bazaar ask when available. */
     public double recombCost = 11_000_000d;
     /** Snipes: reference price is this quantile of the non-BIN pool (0.25 = lower quartile). */
@@ -154,6 +183,15 @@ public final class FlipConfig {
         c.bookOnlyMinConfidence = bookOnlyMinConfidence;
         c.bookOnlyMinSupport = bookOnlyMinSupport;
         c.minAuctionSupport = minAuctionSupport;
+        c.minVariantListingsWithSales = minVariantListingsWithSales;
+        c.conservativeSalesQuantile = conservativeSalesQuantile;
+        c.riskBufferPct = riskBufferPct;
+        c.maxHoldHours = maxHoldHours;
+        c.maxBookOnlyHoldHours = maxBookOnlyHoldHours;
+        c.unknownLiquidityMarginPremiumPct = unknownLiquidityMarginPremiumPct;
+        c.unsoldMarkdownPct = unsoldMarkdownPct;
+        c.capitalChargePerDayPct = capitalChargePerDayPct;
+        c.requirePositiveRiskAdjusted = requirePositiveRiskAdjusted;
         c.recombCost = recombCost;
         c.deterministic = deterministic;
         c.minNpcProfit = minNpcProfit;

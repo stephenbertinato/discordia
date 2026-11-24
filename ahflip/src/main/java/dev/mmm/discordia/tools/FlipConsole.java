@@ -97,7 +97,8 @@ public final class FlipConsole {
         } catch (Exception e) {
             npc = dev.mmm.discordia.core.NpcPrices.empty();
         }
-        FlipEngine.Result result = new FlipEngine().compute(snapshot, reference, config, sold,
+        FlipEngine engine = new FlipEngine();
+        FlipEngine.Result result = engine.compute(snapshot, reference, config, sold,
                 new dev.mmm.discordia.core.AttributePricing(sold, bazaarBuy), npc);
         System.out.printf("NPC prices: %d items%n", npc.size());
         long elapsed = System.currentTimeMillis() - started;
@@ -120,6 +121,7 @@ public final class FlipConsole {
         print("AUCTION SNIPES (ENDING SOON)", result.sniping());
 
         System.out.println();
+        System.out.printf("Rejected: %d (%s)%n", engine.rejections().total(), engine.rejections().summary(6));
         System.out.println("Nothing was bought. Copy a command and run it yourself if you agree with the price.");
     }
 

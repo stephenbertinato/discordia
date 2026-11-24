@@ -38,7 +38,7 @@ cd ahflip
 
 The first build downloads the Minecraft client and the required compile-time libraries into
 `.tooling/` and `libs/`; those directories are gitignored. The finished mod is written to
-`ahflip/build/libs/discordia-1.0.0.jar`.
+`ahflip/build/libs/discordia-1.1.0.jar`.
 
 Install it in the `.minecraft/mods` directory of a Fabric 26.2 profile. There is no Fabric API
 dependency.
@@ -50,8 +50,23 @@ cd ahflip
 ./verify.sh
 ```
 
-This builds the mod and runs the deterministic offline probes. The algorithm brief requires new
-regression probes to be added to this command.
+This builds the mod and runs the deterministic offline probes: the global-sales failure matrix, the
+global zero/alias gate, the Cofl contract check, and `AlgorithmGuardProbe` — 59 assertions covering
+the fee brackets, the anchor and support rules, the thin-sample manipulation guard, the
+plain-item weekly-median gate, the recombobulator and Wither-scroll ceilings, the conservative exit
+floor, the hold horizon and the rejection reason codes.
+
+## How a flip is allowed to be announced
+
+Discordia refuses far more than it announces, on purpose. Profit is booked at a **conservative
+exit** — the ask after a 1.5% drift/relist reserve, and never above the realized p25 once there are
+five sales to measure one — and an item whose expected hold exceeds the horizon (7 days, 3 for a
+book-only flip) is suppressed as a capital trap rather than shown with a large headline.
+`/discordia status` reports a `why` row with the top rejection reasons for the last scan, so an
+empty feed can be told apart from a broken one.
+
+See [`ahflip/README.md`](ahflip/README.md#conservative-exit-hold-horizon-and-why-nothing-was-shown)
+for the full model, the reason codes and the remaining limits.
 
 ## Standalone collector
 

@@ -853,6 +853,15 @@ bookOnlyMinMarginPct           8
 bookOnlyMinConfidence          0.35
 bookOnlyMinSupport             2
 minAuctionSupport              2
+minVariantListingsWithSales    3        (listing floor with >=5 exact-variant sales)
+conservativeSalesQuantile      0.25     (hard gate uses p25, not the median)
+riskBufferPct                  1.5      (reserved off the exit for drift/relist/slippage)
+maxHoldHours                   168      (7 days; 0 disables)
+maxBookOnlyHoldHours           72       (book-only has no sale evidence behind the target)
+unknownLiquidityMarginPremiumPct 2      (added to the margin gate when the hold is unknown)
+unsoldMarkdownPct              10       (markdown that forces an unsold item to move)
+capitalChargePerDayPct         0.5      (opportunity cost of locked coins)
+requirePositiveRiskAdjusted    true
 recombCost                     11,000,000 (fallback; live bazaar ask preferred)
 auctionReferenceQuantile       0.25
 bazaarTax                      0.0125
@@ -897,19 +906,82 @@ The fast lane uses a 2-second poll, a 1.35× tag-price prefilter, and the shared
 
 ## Appendix B — Definition-of-done checklist
 
-- [ ] Read the current engine and README.
-- [ ] Baseline build/tests recorded.
-- [ ] Evidence states modeled; unknown never silently zero.
-- [ ] Exact variant and cosmetic rules preserved/extended.
-- [ ] Conservative lower bound and risk buffer implemented.
-- [ ] All fees and add-on costs included exactly once.
-- [ ] Recomb/scroll/attribute/weekly ceilings enforced.
-- [ ] Liquidity and expected horizon modeled.
-- [ ] Fast and normal evaluator unified.
-- [ ] Duplicate alerts prevented across restart.
-- [ ] Fast-lane status/diagnostics exposed.
-- [ ] Regression fixtures added to `verify.sh`.
-- [ ] Collector build passes.
-- [ ] README/brief updated.
-- [ ] Commit pushed to the same repository.
-- [ ] No guarantee language; limitations documented.
+- [x] Read the current engine and README.
+- [x] Baseline build/tests recorded.
+- [x] Evidence states modeled; unknown never silently zero.
+- [x] Exact variant and cosmetic rules preserved/extended.
+- [x] Conservative lower bound and risk buffer implemented.
+- [x] All fees and add-on costs included exactly once.
+- [x] Recomb/scroll/attribute/weekly ceilings enforced.
+- [x] Liquidity and expected horizon modeled.
+- [x] Fast and normal evaluator unified (both lanes already call `FlipEngine.compute`).
+- [ ] Duplicate alerts prevented across restart — still in-memory only; documented as a limit.
+- [x] Fast-lane status/diagnostics exposed (plus per-scan reason codes).
+- [x] Regression fixtures added to `verify.sh`.
+- [x] Collector build passes.
+- [x] README/brief updated.
+- [x] Commit pushed to the same repository.
+- [x] No guarantee language; limitations documented.
+
+---
+
+## 13. Implementation status (2026-11-24)
+
+This section records what was actually built against the plan above, and where it differs.
+
+### 13.1 What changed
+
+| Area | Change |
+|---|---|
+| Conservative exit | New `RiskModel.conservativeGross`: gross exit = `min(target, realized p25) × (1 − riskBufferPct)`. The p25 is used only when at least `fullSalesTrust` (5) exact-variant sales exist, because the Cofl summary carries no quartile and `median` must not be passed off as `p25`. Profit, margin and every gate are then computed at that floor; the ask is still displayed as the target. |
+| Hold horizon | New `maxHoldHours` (168) and `maxBookOnlyHoldHours` (72). A known hold beyond the horizon is `CAPITAL_TRAP`. An unknown hold adds `unknownLiquidityMarginPremiumPct` to the margin requirement instead of passing silently. |
+| Risk-adjusted gate | `RiskModel.saleProbability` is Poisson (`1 − exp(−horizon/hold)`); expected profit subtracts the unsold cost (one more listing fee + `unsoldMarkdownPct` markdown) and a capital charge (`capitalChargePerDayPct`). `requirePositiveRiskAdjusted` refuses a non-positive expectation. |
+| Thin-book rescue | The listing floor drops from `minAuctionListings` (6) to `minVariantListingsWithSales` (3) when the exact variant has ≥ 5 realized sales. Spread, support, anchor and every ceiling are unchanged; realized sales now also carry confidence on their own (`min(1, n/10)`), which is what makes the rescue usable. |
+| Blade capital | `buy price + missing scroll cost` must fit inside `maxCost()`. Previously only the listing price was checked, so a cheap partial blade needing hundreds of millions of scrolls passed the budget gate. |
+| Snipes | The non-BIN reference takes the same `riskBufferPct` reserve, because a bid is not a purchase. |
+| Reason codes | New `Rejections` with 24 stable codes. The auction and snipe paths increment one per refusal; `FlipEngine.rejections()` exposes them, `/discordia status` shows a `why` row for the last scan, `FlipConsole` prints them, and the probe asserts them. |
+| Build | `build.sh` falls back to `python3` when `node` is missing, so the documented build works on a machine without Node. The four shell scripts are now committed executable (they were 100644, so `./build.sh` failed with "Permission denied"). |
+| Probe harness | `GlobalFailureProbe`'s `FAULT404_RING` wait was 2 s against a 2 s in-loop retry sleep and failed about two runs in three. The assertion is unchanged; the wait is now 8 s. |
+
+### 13.2 Where this differs from the plan
+
+- **No new `Evaluation` type.** Section 6.1 suggests a pure evaluator returning a typed result.
+  Both lanes already share `FlipEngine.compute`, so the reordering needed (sales evidence before
+  the pool anchor) was done inside `auctionFlips` and the result is still a `Flip`. Changing the
+  `Flip` record would have broken `CollectorClient` and `FlipConsole` for no behavioural gain.
+- **The lower bound is variant-local, not global.** `GlobalSales` sets `p25 = median` because the
+  Cofl analysis endpoint exposes no quartile (see its comment at the return of `fetch`). Applying
+  that value as a hard lower bound would have quietly made the weekly median a floor, which
+  suppresses nearly every plain-item book flip. The gate therefore uses a real p25 where one
+  exists (≥ 5 local exact-variant sales) and relies on the existing weekly-median caps elsewhere.
+- **Announced IDs are still memory-only.** Criterion 8 is not met. It is listed as a known limit
+  rather than silently claimed.
+- **No replay/backtest probe (9.3).** The fixture set is too small and too synthetic to tune
+  thresholds on, and section 9.3 itself says to keep the stricter gate in that case. The guard
+  probe covers the invariant half of 9.2 instead.
+
+### 13.3 Commands run and results
+
+```text
+$ cd ahflip && ./verify.sh                 -> exit 0
+  java ... GlobalFailureProbe              -> PASS (9 offline cases, loopback only)
+  java ... GlobalGateProbe                 -> PASS (Titanium 8.90M -> 10.78M, +1.40M, 16%)
+  java ... CoflContractProbe               -> PASS (offline alias checks)
+  java ... AlgorithmGuardProbe             -> ALL GUARDS PASS (59 checks)
+$ cd collector && ./build.sh               -> exit 0
+$ cd ahflip && ./build.sh                  -> build/libs/discordia-1.0.0.jar
+```
+
+Alerts on the fixture set: no accepted auction flip books a non-positive profit (the gate is
+structural), and the Titanium control's booked profit fell from 1.56M to 1.40M purely because it is
+now measured at the conservative floor rather than at the ask. That is the intended direction.
+
+### 13.4 Remaining limits
+
+1. The p25 gate needs five exact-variant sales; below that the median-based target is used with
+   the 1.5% reserve only. A thin sample still cannot produce a lower bound.
+2. The Poisson sale probability treats sales as a stationary process. It is not: mayors, events
+   and updates move rates, and a 7-day window smooths that away.
+3. Nothing here makes a player-driven market safe. No alert is guaranteed, risk-free or certain,
+   and a crash, a manipulated listing or a missed variant can still lose coins.
+

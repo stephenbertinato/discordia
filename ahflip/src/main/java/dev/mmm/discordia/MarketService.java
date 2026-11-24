@@ -199,6 +199,8 @@ public final class MarketService {
                         }
                     }
                     requestGlobalSales(candidates, reference);
+                    // Reason codes describe the scan that just ran, not the whole session.
+                    engine.resetRejections();
                     FlipEngine.Result computed = engine.compute(candidates, reference, config, sold,
                             new AttributePricing(sold, bazaarBuy), npcPrices);
                     baseResult = computed;
@@ -396,6 +398,16 @@ public final class MarketService {
             }
         }
         return count;
+    }
+
+    /** Candidates the last scan refused, so an empty feed can be told apart from a broken one. */
+    public int rejectedCandidates() {
+        return engine.rejections().total();
+    }
+
+    /** The most common rejection reasons from the last scan. */
+    public String rejectionSummary() {
+        return engine.rejections().summary(4);
     }
 
     public int globalSalesItems() {

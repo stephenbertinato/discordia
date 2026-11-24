@@ -395,6 +395,8 @@ public final class DiscordiaClient implements ClientModInitializer {
                 + MARKET.globalUnavailableSales() + " unavailable");
         statusRow(minecraft, "health", MARKET.globalHealth());
         statusRow(minecraft, "pending", MARKET.unresolvedFlips() + " unverified flips");
+        statusRow(minecraft, "why", MARKET.rejectedCandidates() + " rejected  |  "
+                + MARKET.rejectionSummary());
         sendActions(minecraft);
     }
 

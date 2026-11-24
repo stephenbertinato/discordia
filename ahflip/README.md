@@ -189,7 +189,7 @@ means reading the in-game auction house UI, which is automation and against Hypi
 ```
 
 First run downloads the 26.2 client jar, Fabric Loader, Gson and Minecraft's library set into
-`.tooling/` and `libs/` (gitignored). Output: `build/libs/discordia-1.0.0.jar`.
+`.tooling/` and `libs/` (gitignored). Output: `build/libs/discordia-1.1.0.jar`.
 
 Install: Fabric Loader 0.20.1+ profile for 26.2, drop the jar in `.minecraft/mods`. No Fabric API
 dependency.
@@ -515,6 +515,78 @@ is available. It can hide a plain BIN while Cofl is still loading; that is safer
 unverified pumped book into a purchase recommendation.
 
 
+## Conservative exit, hold horizon, and why nothing was shown
+
+Three extra gates run before a BIN flip is announced. They exist because the recurring way a flip
+finder loses money is not a bad formula, it is arithmetic that quietly assumed the best case.
+
+**The ask is not the exit.** An accepted flip must still be profitable at a *conservative* exit:
+the lower of the target and, once there are at least **5** sales of the exact variant, their
+realized **p25**; then less a **1.5%** reserve for price drift, the second listing fee if it does
+not sell, and execution slippage. The chat line shows the ask you should list at, but the profit,
+the margin and every gate are computed at that floor, and the detail line ends with it:
+
+```text
+6 listed, 1.2 sales/h -> ~5.7h, 100% inside 3.0d (floor 10.62M after 1.5% reserve)
+PestHunter ... 13 listed, 4.0 sales/h -> ~3.5h, 98% inside 7.0d (floor 8.94M, p25 of 9 sales)
+```
+
+So a flip whose profit only exists at the optimistic ask is now suppressed instead of announced.
+`conservativeSalesQuantile` and `riskBufferPct` are the knobs; both default stricter than "off".
+
+**A slow flip is a capital trap.** Time to sell is `(listings + 1) / sales per hour` from realized
+sales. A candidate whose expected hold exceeds `maxHoldHours` (**168h**, 7 days) is refused, and a
+book-only flip — priced from listings with no same-variant sale behind it — gets a tighter
+`maxBookOnlyHoldHours` (**72h**). When the hold cannot be estimated at all, the margin requirement
+goes up by `unknownLiquidityMarginPremiumPct` (2%) instead of the item being treated as instant.
+
+**Expected value has to be positive.** `saleProbability` is a Poisson arrival,
+`1 - exp(-horizon / hold)`. Expected profit is `p × profit` minus the cost of *not* selling (one
+more listing fee plus a 10% markdown to force it) minus the cost of the coins being locked up
+(0.5%/day). A 4M headline on a 30-hour hold is fine; the same headline on a month-long hold is not.
+
+**A rare item can trade more often than it is listed.** The usual floor of **6** listings is
+lowered to **3** when the exact variant already has **5** realized sales — realized sales are
+stronger evidence than a thin book. Only the listing *count* moves: the unique-cheapest rule, the
+±10% support requirement, the spread cap and every ceiling above still apply, and the flips that
+qualify are labelled with the pool they were priced from.
+
+**Scrolls are capital, not a discount.** A partial Wither blade's missing scrolls are bazaar-priced
+before it is priced at all, and `buy price + scroll cost` must fit inside the item cap. A 30M
+partial Hyperion needing 300M of scrolls is not an affordable flip even though the listing is.
+
+Non-BIN snipes take the same 1.5% reserve on their BIN reference, because a bid is not a purchase
+and the reference is not that auction's resale price.
+
+### `/discordia status`: the `why` row
+
+Every refusal increments a stable reason code, and the last scan's top four are shown:
+
+```text
+ why     1187 rejected  |  THIN_POOL 820, NO_SALES 190, MARGIN 96, CAPITAL_TRAP 22
+```
+
+An empty feed can now be told apart from a broken one. `THIN_POOL` and `NO_ANCHOR` mean the book is
+thin or nobody is undercutting anyone, `GLOBAL_PENDING` means Cofl has not answered yet,
+`GLOBAL_ZERO` means the market really does not trade the item, `CAPITAL_TRAP` means it trades too
+slowly to be worth the coins, and `SCROLL_UNAVAILABLE` means the bazaar cannot fill the scrolls.
+The console prints the same counts (`FlipConsole`), and `verify.sh` asserts them offline.
+
+| Code | Meaning |
+|---|---|
+| `NO_ANCHOR` | another copy is cheaper, this price is duplicated, or there is nothing to undercut |
+| `THIN_SUPPORT` | the pool around the resale anchor is too thin to be a market |
+| `THIN_POOL` / `WIDE_SPREAD` | too few listings to price from, or they disagree too much |
+| `NO_SALES` / `LOW_VOLUME` | no realized sale ever, or below the sells/day floor |
+| `GLOBAL_PENDING` / `GLOBAL_ZERO` | plain item: the weekly summary is unanswered, or too thin |
+| `BUY_ABOVE_GLOBAL` | the entry is above the weekly-median multiple |
+| `MANIPULATED_ANCHOR` | the next listing is many times the realized price |
+| `RECOMB_CEILING` / `NO_FULL_BLADE` / `SCROLL_UNAVAILABLE` | a component ceiling cannot be met |
+| `OVER_BUDGET` | price plus add-on cost exceeds the item cap |
+| `MIN_PROFIT` / `MARGIN` / `IMPLAUSIBLE_MARGIN` | the conservative exit does not clear the gate |
+| `LOW_CONFIDENCE` | not enough agreeing evidence for the target |
+| `CAPITAL_TRAP` / `RISK_ADJUSTED` | the hold is too long, or expected value is not positive |
+
 ## Sale statistics
 
 There are two layers:
@@ -586,6 +658,15 @@ ended auction's real `timestamp`, not the moment the client noticed it.
 8. **Plain BINs need Cofl price confirmation.** When the weekly summary is pending, unavailable,
    or has fewer than 8 sales, plain BIN flips stay hidden. This reduces the chance of buying a
    pumped listing, at the cost of a short startup gap and some sparse-item coverage.
+9. **The conservative floor hides marginal flips on purpose.** Booking profit at the p25 rather
+   than the median, and reserving 1.5%, turns many 1-2% edges into non-flips. That is the trade:
+   the alert is what survives a worse-than-median exit, not what a perfect exit would have paid.
+10. **The hold horizon is a gate, not a suggestion.** An item that clears a large profit but is
+    estimated to sit listed longer than 7 days (3 days for book-only) is now suppressed with
+    `CAPITAL_TRAP`, even though its profit number would have looked good. Lower
+    `maxHoldHours` / `maxBookOnlyHoldHours` for a stricter, faster-turnover feed; set them to 0 to
+    disable the gate (not recommended).
+
 
 Roadmap in order: variant-level sale volume → craft flips. Global item volume is now supplied by
 the SkyCofl summary cache; local exact-variant history remains the second layer.
@@ -610,7 +691,31 @@ the SkyCofl summary cache; local exact-variant history remains the second layer.
   fields the client now requires, rather than silently accepting a schema break. The live check
   on 2026-11-24 returned HTTP 200 for `TITANIUM_RING` (199 sales, median 7,999,999, 28.429/day)
   and `PET_LION` (1,867 sales at the second check, median 24,000,000, 266.714/day).
-- Full reproducible check: `./verify.sh` runs the build and all three offline probes.
+- Full reproducible check: `./verify.sh` runs the build and all four offline probes.
+- Algorithm guard probe (2026-11-24):
+  `java -cp "build/classes;libs/gson.jar" dev.mmm.discordia.tools.AlgorithmGuardProbe`
+  asserts 59 decisions offline. Listing fee exact at 9.99M/10M/10.01M/100M/100.01M including the
+  documented bracket cliff; claim tax zero at 1M, clamped to `sale - 1M` just above it, 1% above
+  that; a 5k bid on a non-BIN auction is kept as a bid and never becomes a buy price while a BIN
+  purchase price is read from `starting_bid` and not from `highest_bid_amount`; Little's law
+  (`41 listings, 6 sales/h -> 7h`) and the Poisson sale probability; six copies at one price
+  produce 6 x `NO_ANCHOR`; five dearer copies of a cheaper listing produce 5 x `NO_ANCHOR` while
+  the cheapest is priced; a lonely 40M next listing with nothing within 10% produces
+  `THIN_SUPPORT`; four 5M sales under a 40M ask produce `MANIPULATED_ANCHOR`; a thick sample of
+  five sales prices a 19.6M ask at a **4.15M floor-booked profit against 5.01M at the ask**; a
+  four-sale weekly summary produces `GLOBAL_ZERO`, an unanswered one `GLOBAL_PENDING`, and a
+  400-sale summary prices the same book; a 50M non-recomb listing against a 58M recombed copy
+  with a 10.2M recombobulator is refused while the same book without a recombed copy is priced;
+  a partial blade is capped at 33.41M by the full-blade exit after 6M of scrolls, an empty scroll
+  book gives `SCROLL_UNAVAILABLE`, and 30M + 6M scrolls over a 34M cap gives `OVER_BUDGET`; a
+  three-listing book backed by five realized sales is priced while the same book without sales
+  gives `THIN_POOL`; and two sales a month over a six-listing pool gives `CAPITAL_TRAP`.
+- Build on this machine: `ahflip/build.sh` produced `build/libs/discordia-1.1.0.jar` against the
+  real 26.2 client jar, and `collector/build.sh` produced `collector/build/classes`.
+  `GlobalGateProbe`, `GlobalFailureProbe` and `CoflContractProbe` all still pass, and `./verify.sh`
+  (all four probes) exits 0. The build script now falls back to `python3` when `node` is absent,
+  and the four shell scripts are committed executable, so `./build.sh` and `./verify.sh` run as
+  documented instead of failing with "Permission denied".
 - Pumped-book guard: a synthetic plain Gyrokinetic-like book with a 40M entry, a 45.77M next ask
   and a 25M weekly median is rejected, while the same book is accepted when the synthetic weekly
   median is 50M. A separate thick-evidence control with five recent 40M sales allows a 30M entry

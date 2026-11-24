@@ -14,3 +14,4 @@ CP="build/classes${SEP}libs/gson.jar"
 java -cp "$CP" dev.mmm.discordia.tools.GlobalFailureProbe
 java -cp "$CP" dev.mmm.discordia.tools.GlobalGateProbe
 java -cp "$CP" dev.mmm.discordia.tools.CoflContractProbe
+java -cp "$CP" dev.mmm.discordia.tools.AlgorithmGuardProbe
