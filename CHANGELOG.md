@@ -1,5 +1,61 @@
 # Changelog
 
+## 1.4.0 — 2026-11-24
+
+### Craft flips: recipes, ingredient prices and replacement cost
+
+The one class the finder could not see at all. Cofl's `CraftCost` finder flags auctions that cost
+less than the item costs to build; this release adds the data and the two lanes behind that idea.
+
+**The recipe table is bundled, not fetched.** `tools/build-craft-data.mjs` extracts **2,002**
+crafting outputs (3x3 grids, flattened to present ingredients) plus **523** star-cost tables and
+**86** reforge stones from NotEnoughUpdates-REPO (MIT) into `recipes.json` and `upgrades.json`,
+committed with the mod. A scan therefore needs no third-party service to know what an item is made
+of, and the recipe graph cannot go down with someone else's API.
+
+**Everything is priced from live sources.** Every ingredient resolves to the cheapest route that
+can actually be proven right now: bazaar instant buy walking the real ask book for the quantity
+needed, the NPC price, an auction LBIN (only when at least two copies exist, so one stale listing
+cannot price a recipe), or crafting it in turn down to six levels deep. A cycle in the graph
+resolves to unknown instead of looping. Any unpriceable ingredient makes the whole floor **unknown
+rather than optimistic** — a floor missing a component would make a heavily upgraded item look
+cheap to recreate.
+
+**Modifiers are real costs.** Stars are 1,850 Dragon essence for a Terminator (7.6M at today's
+bazaar), the five master stars are 210.3M, a recombobulator is 9.6M, and a Precise reforge is the
+Optical Lens plus 100k. Base craft 350.1M plus those gives a **577.6M** replacement cost for a 5★
+5-master★ Precise Terminator, against the 753M it resold for. Enchantments are deliberately not
+modelled: merging books is a different cost problem, and leaving them out can only understate the
+floor.
+
+Two lanes use that number:
+
+- **Craft flips (`CRAFT`).** Buy the ingredients, craft, sell. The ingredient bill is an exact
+  cost; the exit is the same conservative floor the auction lane uses (weekly median, then the
+  realized p25 once there are five sales, then the 1.5% drift/relist reserve). A recipe with no
+  weekly evidence is not a flip however cheap its inputs are.
+- **Replacement-cost ceiling on auctions.** A listing's resale target is now capped at what the
+  item costs to build, plus `maxCraftPremiumPct` (25%). A book claiming a 900M resale on something
+  craftable for 300M is describing an exit that does not exist. The detail line says so:
+  `(craft floor cap 577.6M)`.
+
+New knobs: `crafts`, `minCraftProfit`, `minCraftMarginPct`, `maxCraftMarginPct`, `maxCraftDepth`,
+`minCraftSalesPerDay`, `maxCraftPremiumPct`. New reason codes: `CRAFT_UNPRICED`, `CRAFT_NO_EXIT`.
+Recipes with no market at all are skipped silently rather than counted, so two thousand empty
+recipes cannot bury the auction diagnostics.
+
+`AlgorithmGuardProbe` is now **83 checks**, including: one blaze rod at 100 prices blaze powder at
+_exactly_ 100; a 40-coin finished listing does not lower a 100-coin floor while acquisition still
+takes the cheaper route; an unpriced ingredient yields `UNKNOWN`, never zero; five Dragon stars, a
+recomb and a Precise stone cost exactly 321,500; an unknown reforge fails closed; a 100-coin
+recipe against a 130 median is a flip; the same recipe against an 80 median is not; and two weekly
+sales are refused as `CRAFT_NO_EXIT`.
+
+Live console run after the change: 36,283 rejections with `CRAFT_NO_EXIT` no longer in the top
+six, and no craft flips announced because the console's weekly-summary file is empty — the lane is
+gated on evidence, which is the intended behaviour.
+
+
 ## 1.3.1 — 2026-11-24
 
 ### A verified market exit outranks the book's margin cap

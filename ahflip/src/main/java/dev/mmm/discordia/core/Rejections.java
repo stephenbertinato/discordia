@@ -70,7 +70,11 @@ public final class Rejections {
         /** Expected hold time exceeds the horizon: a capital trap, however large the headline. */
         CAPITAL_TRAP,
         /** Expected value after sale risk and locked capital is not positive. */
-        RISK_ADJUSTED
+        RISK_ADJUSTED,
+        /** Craft flip: at least one ingredient has no price we can prove, so the floor is unknown. */
+        CRAFT_UNPRICED,
+        /** Craft flip: the finished item has no market-wide sales evidence to sell into. */
+        CRAFT_NO_EXIT
     }
 
     private final Map<Reason, AtomicInteger> counts = new ConcurrentHashMap<>();

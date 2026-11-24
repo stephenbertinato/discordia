@@ -37,3 +37,6 @@ Thumbs.db
 # Freebuff Desktop workspace metadata
 .freebuff/
 .cloud-attachments/
+
+# Temporary NEU checkout used by tools/build-craft-data.mjs
+.neu-tmp/

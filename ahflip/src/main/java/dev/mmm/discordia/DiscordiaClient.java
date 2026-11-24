@@ -858,8 +858,12 @@ public final class DiscordiaClient implements ClientModInitializer {
             if (!"-".equals(flip.tier())) {
                 line.append(Component.literal(" [" + flip.tier() + "]").withStyle(ChatFormatting.DARK_GRAY));
             }
-            line.append(Component.literal(flip.kind() == Flip.Kind.SNIPE ? " [S]" : " [BIN]")
-                    .withStyle(flip.kind() == Flip.Kind.SNIPE ? ChatFormatting.GOLD : ChatFormatting.GREEN));
+            if (flip.kind() == Flip.Kind.CRAFT) {
+                line.append(Component.literal(" [CRAFT]").withStyle(ChatFormatting.LIGHT_PURPLE));
+            } else {
+                line.append(Component.literal(flip.kind() == Flip.Kind.SNIPE ? " [S]" : " [BIN]")
+                        .withStyle(flip.kind() == Flip.Kind.SNIPE ? ChatFormatting.GOLD : ChatFormatting.GREEN));
+            }
             String unresolved = unresolvedTag(flip);
             if (!unresolved.isEmpty()) {
                 line.append(Component.literal(unresolved).withStyle(
@@ -929,7 +933,8 @@ public final class DiscordiaClient implements ClientModInitializer {
         Flip flip = all.get(0);
         String command = flip.command();
         if (command.isEmpty()) {
-            String where = flip.kind() == Flip.Kind.KAT ? "open Kat in the Pet Care" : "open the forge";
+            String where = flip.kind() == Flip.Kind.CRAFT ? "craft it from the listed ingredients"
+                    : flip.kind() == Flip.Kind.KAT ? "open Kat in the Pet Care" : "open the forge";
             warn(minecraft, flip.name() + " is a conversion - " + where + " and use its inputs.");
             return;
         }

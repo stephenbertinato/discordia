@@ -75,9 +75,18 @@ public final class FlipEngine {
                 registerItems(sold, book);
             }
         }
+        CraftCosts.Prices priceIndex = config.crafts ? priceIndex(book, npc) : null;
+        CraftCosts craft = priceIndex == null ? null : new CraftCosts(priceIndex, config.maxCraftDepth);
         List<Flip> bazaar = config.bazaar ? bazaarFlips(snapshot, config) : List.of();
-        List<Flip> auctions = config.auctions ? auctionFlips(snapshot, reference, config, sold, pricing) : List.of();
-        List<Flip> deterministic = config.deterministic ? deterministicFlips(book, config, npc) : List.of();
+        List<Flip> auctions = config.auctions
+                ? auctionFlips(snapshot, reference, config, sold, pricing, craft) : List.of();
+        List<Flip> deterministic = new ArrayList<>();
+        if (config.deterministic) {
+            deterministic.addAll(deterministicFlips(book, config, npc));
+        }
+        if (craft != null) {
+            deterministic.addAll(craftFlips(config, sold, craft, priceIndex));
+        }
         List<Flip> sniping = config.snipes ? snipeFlips(book, config, sold) : List.of();
         return new Result(bazaar, auctions, deterministic, sniping);
     }
@@ -375,7 +384,7 @@ public final class FlipEngine {
     }
 
     private List<Flip> auctionFlips(MarketSnapshot snapshot, MarketSnapshot reference, FlipConfig config,
-                                    SoldStats sold, AttributePricing pricing) {
+                                    SoldStats sold, AttributePricing pricing, CraftCosts craft) {
         double maxCost = config.maxCost();
         double recombCost = config.recombCost;
         MarketSnapshot.BazaarQuote recombQuote = snapshot.bazaar.get("RECOMBOBULATOR_3000");
@@ -744,6 +753,22 @@ public final class FlipEngine {
                     recombCapped = true;
                 }
 
+                // --- Replacement-cost ceiling --------------------------------------------------
+                // What the item costs to build is the most anyone can rationally pay for it. A book
+                // that claims a 900M resale on something craftable for 300M is describing an exit
+                // that does not exist. This is the craft-cost finder's valuation, used as a cap.
+                String craftCapNote = "";
+                if (craft != null) {
+                    double floor = craft.variantFloor(listing.variant(), listing.tier());
+                    if (floor != CraftCosts.UNKNOWN && floor > 0d) {
+                        double cap = floor * (1d + config.maxCraftPremiumPct / 100d);
+                        if (effectiveTarget > cap) {
+                            effectiveTarget = cap;
+                            craftCapNote = String.format(" (craft floor cap %s)", coins(floor));
+                        }
+                    }
+                }
+
                 // --- Conservative exit --------------------------------------------------------
                 // The ask is not the price you get. Every accepted flip must still be profitable
                 // at a lower bound: the ask after a drift/relist/slippage reserve, and never above
@@ -890,9 +915,10 @@ public final class FlipEngine {
                         minutesToSell,
                         0d,
                         listingConfidence,
-                        String.format("%s%s [%s]%s%s%s%s %s = %s; %s; %s%s", note,
-                                sample.variantLabel(), poolLabel, reforgeNote, recombNote, scrollNote,
-                                globalPriceNote, poolText, coins(effectiveTarget), volume, timing, safeNote),
+                                                String.format("%s%s [%s]%s%s%s%s%s %s = %s; %s; %s%s",
+                                note, sample.variantLabel(), poolLabel, reforgeNote, recombNote, scrollNote,
+                                craftCapNote, globalPriceNote, poolText, coins(effectiveTarget), volume,
+                                timing, safeNote),
                         salesMedian
                 ));
             }
@@ -902,6 +928,144 @@ public final class FlipEngine {
                 .comparingDouble((Flip flip) -> flip.profit() * flip.confidence()).reversed()
                 .thenComparing(Comparator.comparingDouble(Flip::marginPct).reversed()));
         return trim(out, config.limit);
+    }
+
+    /**
+     * LBIN per item id, plus how many copies back it, for the craft resolver.
+     *
+     * <p>Ingredients that only exist on the auction house are priced from the cheapest listing, and
+     * the depth is carried alongside so a single stale listing cannot price a whole recipe.
+     */
+    private static CraftCosts.Prices priceIndex(MarketSnapshot book, NpcPrices npc) {
+        Map<String, Double> lbin = new HashMap<>();
+        Map<String, Integer> depth = new HashMap<>();
+        for (List<MarketSnapshot.Listing> listings : book.listingsByKey.values()) {
+            for (MarketSnapshot.Listing listing : listings) {
+                if (listing.price() <= 0d) {
+                    continue;
+                }
+                String id = listing.skyblockId();
+                Double current = lbin.get(id);
+                if (current == null || listing.price() < current) {
+                    lbin.put(id, listing.price());
+                }
+                depth.merge(id, 1, Integer::sum);
+            }
+        }
+        return new CraftCosts.Prices(book.bazaar, npc, lbin, depth);
+    }
+
+    /**
+     * Craft flips: buy the ingredients at provable prices, craft the item, sell it into evidenced
+     * demand.
+     *
+     * <p>The ingredient bill is a real cost, so it is exact; the exit is not, so it is the same
+     * conservative floor the auction lane uses (weekly median, then the realized p25 when there are
+     * enough sales, then the drift/relist reserve). A craft is only announced when the finished item
+     * is demonstrably traded at that price — otherwise the recipe is just a way to own something
+     * nobody wants.
+     */
+    private List<Flip> craftFlips(FlipConfig config, SoldStats sold, CraftCosts craft,
+                                  CraftCosts.Prices prices) {
+        List<Flip> out = new ArrayList<>();
+        if (sold == null) {
+            return out;
+        }
+        double maxCost = config.maxCost();
+        for (String id : CraftRecipes.all().keySet()) {
+            SoldStats.Stats weekly = sold.globalSummary(id);
+            // Evidence first: it is cheap, it removes the legacy ids, and a craft with no market is
+            // not a flip however cheap its ingredients are.
+            if (weekly.pending() || weekly.unavailable() || weekly.count() == 0) {
+                // Most of the 2,002 recipes have no market at all. That is absence, not a refusal:
+                // counting it would bury the auction diagnostics under two thousand entries.
+                continue;
+            }
+            if (weekly.count() < config.minGlobalSalesForPriceGuard || weekly.median() <= 0d
+                    || weekly.perDay() < config.minCraftSalesPerDay) {
+                // It does trade, just not enough to be a market worth crafting into.
+                rejections.count(Rejections.Reason.CRAFT_NO_EXIT);
+                continue;
+            }
+            double cost = craft.craft(id);
+            if (cost == CraftCosts.UNKNOWN || cost <= 0d) {
+                rejections.count(Rejections.Reason.CRAFT_UNPRICED);
+                continue;
+            }
+            if (cost > maxCost) {
+                rejections.count(Rejections.Reason.OVER_BUDGET);
+                continue;
+            }
+
+            List<Double> salePrices = new ArrayList<>();
+            for (SoldStats.Sale sale : sold.salesFor(id)) {
+                if (sale.price() > 0d) {
+                    salePrices.add(sale.price());
+                }
+            }
+            salePrices.sort(Comparator.naturalOrder());
+            double lower = salePrices.size() >= config.fullSalesTrust
+                    ? RiskModel.lowerQuantile(salePrices, config.conservativeSalesQuantile) : 0d;
+            double exit = RiskModel.conservativeGross(weekly.median(), lower, config.riskBufferPct);
+            if (exit <= 0d) {
+                rejections.count(Rejections.Reason.NO_TARGET);
+                continue;
+            }
+
+            double profit = Tax.ahNet(exit) - cost;
+            if (profit < config.minCraftProfit) {
+                rejections.count(Rejections.Reason.MIN_PROFIT);
+                continue;
+            }
+            double margin = profit / cost * 100d;
+            if (margin < config.minCraftMarginPct) {
+                rejections.count(Rejections.Reason.MARGIN);
+                continue;
+            }
+            if (margin > config.maxCraftMarginPct) {
+                rejections.count(Rejections.Reason.IMPLAUSIBLE_MARGIN);
+                continue;
+            }
+
+            double rate = sold.salesPerHourById(id);
+            int listings = Math.max(1, prices.lbinDepth().getOrDefault(id, 1));
+            RiskModel.Liquidity liquidity = RiskModel.liquidity(rate, listings);
+            if (liquidity.known() && config.maxHoldHours > 0d
+                    && liquidity.expectedHours() > config.maxHoldHours) {
+                rejections.count(Rejections.Reason.CAPITAL_TRAP);
+                continue;
+            }
+            if (liquidity.known() && config.requirePositiveRiskAdjusted) {
+                double probability = RiskModel.saleProbability(liquidity.expectedHours(), config.maxHoldHours);
+                double unsold = RiskModel.unsoldCost(exit, config.unsoldMarkdownPct);
+                double adjusted = RiskModel.riskAdjustedProfit(profit, probability, unsold,
+                        liquidity.expectedHours(), cost, config.capitalChargePerDayPct);
+                if (adjusted <= 0d) {
+                    rejections.count(Rejections.Reason.RISK_ADJUSTED);
+                    continue;
+                }
+            }
+
+            double confidence = Math.min(1d, 0.5d + weekly.count() / 200d);
+            String detail = String.format(
+                    "craft from %d ingredients; %s sold/day (n=%d, median %s)%s; exit %s after %.1f%% reserve",
+                    CraftRecipes.of(id).size(), trimNumber(weekly.perDay()), weekly.count(),
+                    coins(weekly.median()),
+                    lower > 0d ? String.format(" (p25 %s)", coins(lower)) : "",
+                    coins(exit), config.riskBufferPct);
+            out.add(new Flip(Flip.Kind.CRAFT, prettify(id), id, "-", cost, exit, profit, margin,
+                    weekly.perDay(), liquidity.known() ? liquidity.expectedHours() * 60d : 0d,
+                    0d, confidence, detail, weekly.median()));
+        }
+        out.sort(Comparator
+                .comparingDouble((Flip flip) -> flip.profit() * flip.confidence()).reversed());
+        return trim(out, config.limit);
+    }
+
+    /** One decimal, without a trailing ".0", for the detail line. */
+    private static String trimNumber(double value) {
+        return value >= 100d ? String.format(Locale.ROOT, "%.0f", value)
+                : String.format(Locale.ROOT, "%.1f", value);
     }
 
     /** Older sale rows predate pet tier/item fields; treat those as wildcards, not mismatches. */

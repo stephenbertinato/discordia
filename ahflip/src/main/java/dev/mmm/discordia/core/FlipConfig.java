@@ -100,6 +100,23 @@ public final class FlipConfig {
     public double capitalChargePerDayPct = 0.5d;
     /** Reject a candidate whose expected value after sale risk and locked capital is not positive. */
     public boolean requirePositiveRiskAdjusted = true;
+    /** Craft-cost lane: price recipes from live ingredients and cap auctions at replacement cost. */
+    public boolean crafts = true;
+    /** Craft flips: minimum profit after the conservative exit. */
+    public double minCraftProfit = 250_000d;
+    /** Craft flips: minimum return on the ingredient bill. */
+    public double minCraftMarginPct = 10d;
+    /** Craft flips: above this margin the output book is too thin to be a market. */
+    public double maxCraftMarginPct = 150d;
+    /** Craft flips: how deep the recipe tree may recurse before the floor is unknown. */
+    public int maxCraftDepth = 6;
+    /** Craft flips: the output must move at least this many units a day. */
+    public double minCraftSalesPerDay = 1d;
+    /**
+     * Auctions: a listing's resale target is capped at its replacement cost plus this much. Buying
+     * far above what the item costs to build is the mistake a craft floor exists to prevent.
+     */
+    public double maxCraftPremiumPct = 25d;
     /** Fallback Recombobulator cost; overridden by the live bazaar ask when available. */
     public double recombCost = 11_000_000d;
     /** Snipes: reference price is this quantile of the non-BIN pool (0.25 = lower quartile). */
@@ -203,6 +220,13 @@ public final class FlipConfig {
         c.unsoldMarkdownPct = unsoldMarkdownPct;
         c.capitalChargePerDayPct = capitalChargePerDayPct;
         c.requirePositiveRiskAdjusted = requirePositiveRiskAdjusted;
+        c.crafts = crafts;
+        c.minCraftProfit = minCraftProfit;
+        c.minCraftMarginPct = minCraftMarginPct;
+        c.maxCraftMarginPct = maxCraftMarginPct;
+        c.maxCraftDepth = maxCraftDepth;
+        c.minCraftSalesPerDay = minCraftSalesPerDay;
+        c.maxCraftPremiumPct = maxCraftPremiumPct;
         c.recombCost = recombCost;
         c.deterministic = deterministic;
         c.minNpcProfit = minNpcProfit;

@@ -34,7 +34,7 @@ public record Flip(
         String detail,
         double medianPrice
 ) {
-    public enum Kind {BAZAAR, AUCTION, NPC, FORGE, SNIPE, KAT}
+    public enum Kind {BAZAAR, AUCTION, NPC, FORGE, SNIPE, KAT, CRAFT}
 
     /** Compatibility constructor for flips that do not have a realized median. */
     public Flip(Kind kind, String name, String id, String tier, double buyPrice, double targetPrice,
@@ -51,7 +51,7 @@ public record Flip(
         return switch (kind) {
             case AUCTION, NPC, SNIPE -> "/viewauction " + id;
             case BAZAAR -> "/bz " + id;
-            case FORGE, KAT -> "";
+            case FORGE, KAT, CRAFT -> "";
         };
     }
 }

@@ -2,11 +2,13 @@ package dev.mmm.discordia.tools;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import dev.mmm.discordia.core.CraftCosts;
 import dev.mmm.discordia.core.Flip;
 import dev.mmm.discordia.core.FlipConfig;
 import dev.mmm.discordia.core.FlipEngine;
 import dev.mmm.discordia.core.ItemVariant;
 import dev.mmm.discordia.core.MarketSnapshot;
+import dev.mmm.discordia.core.NpcPrices;
 import dev.mmm.discordia.core.Rejections;
 import dev.mmm.discordia.core.RiskModel;
 import dev.mmm.discordia.core.SoldStats;
@@ -48,6 +50,7 @@ public final class AlgorithmGuardProbe {
         thinSampleManipulation();
         thickSalesArePricedConservatively();
         plainGlobalGates();
+        craftCosts();
         recombobulatorCeiling();
         witherScrollCeiling();
         aThinBookWithRealSalesIsStillPriced();
@@ -373,6 +376,125 @@ public final class AlgorithmGuardProbe {
                 .auctions();
         check(flips.isEmpty(), "a six-sale summary must never license an unbounded margin");
         System.out.println("PASS mislisted copy with 6 weekly sales: still refused");
+    }
+
+    /**
+     * The craft-cost lane: a recipe tree priced from live ingredients, modifier costs, and the
+     * fail-closed rules that stop an incomplete recipe from becoming an optimistic floor.
+     */
+    private static void craftCosts() {
+        section("craft cost and replacement floors");
+
+        // BLAZE_POWDER is one BLAZE_ROD in the bundled table, so the floor is exactly the rod's
+        // ask. No median, no book, no guessing: the recipe is the valuation.
+        Map<String, MarketSnapshot.BazaarQuote> bazaar = new LinkedHashMap<>();
+        bazaar.put("BLAZE_ROD", quote("BLAZE_ROD", 100d, 1_000_000d));
+        CraftCosts direct = new CraftCosts(
+                new CraftCosts.Prices(bazaar, NpcPrices.empty(), Map.of(), Map.of()), 6);
+        check(Math.abs(direct.craft("BLAZE_POWDER") - 100d) < 1e-6,
+                "one blaze rod at 100 must price blaze powder at exactly 100");
+        System.out.println("PASS one ingredient: blaze powder floor is exactly the rod ask");
+
+        // A cheap finished listing must not lower the floor; it is what the item costs to BUILD.
+        Map<String, MarketSnapshot.BazaarQuote> cheaper = new LinkedHashMap<>(bazaar);
+        cheaper.put("BLAZE_POWDER", quote("BLAZE_POWDER", 40d, 1_000_000d));
+        CraftCosts both = new CraftCosts(
+                new CraftCosts.Prices(cheaper, NpcPrices.empty(), Map.of(), Map.of()), 6);
+        check(Math.abs(both.craft("BLAZE_POWDER") - 100d) < 1e-6,
+                "a 40-coin finished listing must not lower a 100-coin craft floor");
+        check(Math.abs(both.acquire("BLAZE_POWDER", 1) - 40d) < 1e-6,
+                "acquiring must still take the cheaper market route");
+        System.out.println("PASS cheap finished listing: floor stays 100, acquisition takes 40");
+
+        // An ingredient nobody can price makes the whole floor unknown. Zero would be a lie.
+        CraftCosts unpriced = new CraftCosts(
+                new CraftCosts.Prices(Map.of(), NpcPrices.empty(), Map.of(), Map.of()), 6);
+        check(unpriced.craft("BLAZE_POWDER") == CraftCosts.UNKNOWN,
+                "an unpriced ingredient must make the floor unknown, not zero");
+        System.out.println("PASS unpriced ingredient: floor is UNKNOWN, never zero");
+
+        // Five Dragon stars (1,850 essence), a recombobulator and the Precise stone:
+        // 185,000 essence + 35,000 star coins + 1,000 recomb + 500 lens + 100,000 reforge coins.
+        Map<String, MarketSnapshot.BazaarQuote> mods = new LinkedHashMap<>();
+        mods.put("ESSENCE_DRAGON", quote("ESSENCE_DRAGON", 100d, 1_000_000d));
+        mods.put("RECOMBOBULATOR_3000", quote("RECOMBOBULATOR_3000", 1_000d, 1_000_000d));
+        mods.put("OPTICAL_LENS", quote("OPTICAL_LENS", 500d, 1_000_000d));
+        CraftCosts upgrades = new CraftCosts(
+                new CraftCosts.Prices(mods, NpcPrices.empty(), Map.of(), Map.of()), 6);
+        ItemVariant starred = new ItemVariant("TERMINATOR", "Precise", 5, 0, 0, "", List.of(),
+                "", "", true, List.of());
+        double modifiers = upgrades.modifierCost(starred, "LEGENDARY");
+        check(Math.abs(modifiers - 321_500d) < 1e-6,
+                "five Dragon stars, a recomb and a Precise stone must cost 321,500 but was "
+                        + modifiers);
+        System.out.println(String.format("PASS modifiers: 5 stars + recomb + Precise = %s",
+                coins(modifiers)));
+
+        // A reforge we have no stone for makes the floor unknown rather than free.
+        ItemVariant unknownReforge = new ItemVariant("TERMINATOR", "Mysterious", 0, 0, 0, "",
+                List.of(), "", "", false, List.of());
+        check(upgrades.modifierCost(unknownReforge, "LEGENDARY") == CraftCosts.UNKNOWN,
+                "an unknown reforge must fail closed");
+        System.out.println("PASS unknown reforge: floor is UNKNOWN, not the clean-item price");
+
+        // End to end: 100 of ingredients against a 130 weekly median is a craft flip.
+        FlipConfig config = base();
+        config.minCraftProfit = 10d;
+        config.minCraftMarginPct = 10d;
+        config.maxCraftMarginPct = 150d;
+        Book craftBook = new Book();
+        craftBook.bazaar(quote("BLAZE_ROD", 100d, 1_000_000d));
+
+        SoldStats rich = new SoldStats();
+        rich.setGlobal("BLAZE_POWDER", new SoldStats.Stats(200, 130d, 120d, 500d, false, false));
+        FlipEngine craftEngine = new FlipEngine();
+        Flip craft = craftEngine
+                .compute(craftBook.build(), craftBook.build(), config, rich, null, NpcPrices.empty())
+                .deterministic().stream()
+                .filter(flip -> flip.kind() == Flip.Kind.CRAFT)
+                .findFirst().orElse(null);
+        check(craft != null, "blaze powder at 100 cost and a 130 median must be a craft flip");
+        check(craft != null && Math.abs(craft.buyPrice() - 100d) < 1e-6,
+                "the craft flip must book the ingredient bill as its cost");
+        check(craft != null && craft.profit() > 0d,
+                "the craft flip must be profitable at the conservative exit");
+        System.out.println(String.format("PASS craft flip: ingredients %.0f -> exit %.0f, +%.0f",
+                craft == null ? 0d : craft.buyPrice(),
+                craft == null ? 0d : craft.targetPrice(),
+                craft == null ? 0d : craft.profit()));
+
+        // The same recipe with a finished item worth less than its ingredients is not a flip.
+        SoldStats cheap = new SoldStats();
+        cheap.setGlobal("BLAZE_POWDER", new SoldStats.Stats(200, 80d, 80d, 500d, false, false));
+        FlipEngine cheapEngine = new FlipEngine();
+        boolean anyCraft = cheapEngine
+                .compute(craftBook.build(), craftBook.build(), config, cheap, null, NpcPrices.empty())
+                .deterministic().stream()
+                .anyMatch(flip -> flip.kind() == Flip.Kind.CRAFT);
+        check(!anyCraft, "an output selling below its ingredient bill is not a craft flip");
+        check(cheapEngine.rejections().get(Rejections.Reason.MIN_PROFIT)
+                + cheapEngine.rejections().get(Rejections.Reason.CRAFT_NO_EXIT) >= 1,
+                "a refused craft must be counted, not silently dropped");
+        System.out.println("PASS output under cost: no craft flip, refusal counted");
+
+        // No market evidence for the output at all: the recipe is cheap, the exit is fiction.
+        SoldStats silent = new SoldStats();
+        silent.setGlobal("BLAZE_POWDER", new SoldStats.Stats(2, 130d, 130d, 500d, false, false));
+        FlipEngine silentEngine = new FlipEngine();
+        boolean silentCraft = silentEngine
+                .compute(craftBook.build(), craftBook.build(), config, silent, null, NpcPrices.empty())
+                .deterministic().stream()
+                .anyMatch(flip -> flip.kind() == Flip.Kind.CRAFT);
+        check(!silentCraft, "two weekly sales must not justify a craft flip");
+        check(silentEngine.rejections().get(Rejections.Reason.CRAFT_NO_EXIT) >= 1,
+                "a craft with no exit evidence must report CRAFT_NO_EXIT");
+        System.out.println("PASS two weekly sales: refused as CRAFT_NO_EXIT");
+    }
+
+    private static MarketSnapshot.BazaarQuote quote(String id, double ask, double amount) {
+        return new MarketSnapshot.BazaarQuote(id, ask * 0.9d, ask, 0d, 0d,
+                List.of(new MarketSnapshot.BazaarQuote.Level(ask, amount)),
+                List.of(new MarketSnapshot.BazaarQuote.Level(ask * 0.9d, amount)));
     }
 
     /** A non-recombed copy is worth the recombed price minus the live recombobulator cost. */

@@ -73,6 +73,11 @@ page 0 (over one tick: 130 of 130 new listings). `MarketTicker` measures that pe
 172 KB heartbeat hard only in the ~1.2 s around the predicted boundary, so a new listing reaches
 chat **148–167 ms** after the tick, at about 130 MB/hour instead of 300 MB/hour.
 
+Craft flips are priced the same way: the recipe table is bundled (2,002 outputs from
+NotEnoughUpdates), every ingredient is bought at a provable live price, and the finished item still
+has to clear the same conservative exit. The resulting replacement cost also caps what an auction
+may be priced at, so a book promising a 900M resale on something craftable for 300M is refused.
+
 See [`ahflip/README.md`](ahflip/README.md#conservative-exit-hold-horizon-and-why-nothing-was-shown)
 for the full model, the reason codes and the remaining limits.
 

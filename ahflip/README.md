@@ -675,6 +675,48 @@ sources: the SkyCofl candle/active feed already in the fast lane, and the option
 server, which polls once and shares the result with every client connected to it instead of each
 client polling separately.
 
+## Craft flips and replacement cost
+
+Recipes are bundled, not fetched. `tools/build-craft-data.mjs` extracts 2,002 crafting outputs, 523
+star-cost tables and 86 reforge stones from NotEnoughUpdates-REPO (MIT) into `recipes.json` and
+`upgrades.json`, which ship inside the jar. A scan needs no third-party service to know what an item
+is made of.
+
+Every ingredient is priced at the cheapest route that can be proven at scan time: bazaar instant buy
+walking the real ask book for the exact quantity, the NPC price, an auction LBIN (only when at least
+two copies are listed), or crafting it in turn, six levels deep. A recipe cycle resolves to unknown
+instead of looping, and **any unpriceable ingredient makes the whole floor unknown rather than
+optimistic**.
+
+Modifiers are priced too, because they are most of the cost of a good item:
+
+| Component | Source | Terminator example |
+|---|---|---|
+| Base craft | recipe tree | 350.1M |
+| 5 dungeon stars | 1,850 Dragon essence @ bazaar | 7.6M |
+| 5 master stars | bazaar, one per level | 210.3M |
+| Recombobulator | bazaar | 9.6M |
+| Precise reforge | Optical Lens + 100k | 0.6M |
+| **Replacement cost** | | **577.6M** |
+
+That item resold for 753M, so the floor is a genuine lower bound rather than a wish. Enchantments
+are deliberately not modelled — merging books is a separate cost problem, and omitting them can
+only understate the floor, which is the safe direction.
+
+Two lanes use the number:
+
+1. **`CRAFT` flips** — buy the ingredients, craft, sell. The ingredient bill is exact; the exit is
+the usual conservative floor (weekly median, realized p25 once five sales exist, then the 1.5%
+reserve). No weekly evidence means no flip, however cheap the inputs are.
+2. **Replacement-cost ceiling on auctions** — a listing's target is capped at the craft floor plus
+`maxCraftPremiumPct` (25%), and the detail line shows `(craft floor cap ...)`. A book claiming a
+900M resale on something craftable for 300M is describing an exit that does not exist.
+
+Limits worth knowing: auction-LBIN ingredients use the cheapest copy, so a recipe needing dozens of
+an AH-only item is optimistic (bazaar ingredients are exact, because the fill walks the book);
+reforges with no known stone fail closed; and collection or slayer requirements are not checked, so
+a recipe you cannot unlock will still be priced.
+
 ## Sale statistics
 
 There are two layers:
