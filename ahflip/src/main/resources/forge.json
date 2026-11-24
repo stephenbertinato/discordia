@@ -1,0 +1,14 @@
+{
+  "_source": "NotEnoughUpdates-REPO items/*.json, recipes[type=forge] (MIT). duration in seconds.",
+  "recipes": [
+    { "output": "REFINED_DIAMOND", "count": 1, "durationSeconds": 28800, "inputs": ["ENCHANTED_DIAMOND_BLOCK:2"] },
+    { "output": "REFINED_MITHRIL", "count": 1, "durationSeconds": 21600, "inputs": ["ENCHANTED_MITHRIL:160"] },
+    { "output": "REFINED_TITANIUM", "count": 1, "durationSeconds": 43200, "inputs": ["ENCHANTED_TITANIUM:16"] },
+    { "output": "BEJEWELED_HANDLE", "count": 1, "durationSeconds": 30, "inputs": ["GLACITE_JEWEL:3"] },
+    { "output": "GOLDEN_PLATE", "count": 1, "durationSeconds": 21600, "inputs": ["ENCHANTED_GOLD_BLOCK:2", "REFINED_DIAMOND:1", "GLACITE_JEWEL:5"] },
+    { "output": "PERFECT_AMBER_GEM", "count": 1, "durationSeconds": 72000, "inputs": ["AMBER_CRYSTAL:1", "FLAWLESS_AMBER_GEM:5"] },
+    { "output": "MITHRIL_DRILL_ENGINE", "count": 1, "durationSeconds": 86400, "inputs": ["MITHRIL_PLATE:1", "DRILL_ENGINE:2"] },
+    { "output": "DRILL_ENGINE", "count": 1, "durationSeconds": 108000, "inputs": ["ENCHANTED_IRON_BLOCK:1", "ENCHANTED_REDSTONE_BLOCK:3", "TREASURITE:10", "GOLDEN_PLATE:1"] },
+    { "output": "TITANIUM_DRILL_ENGINE", "count": 1, "durationSeconds": 30, "inputs": ["DRILL_ENGINE:2", "MITHRIL_DRILL_ENGINE:1", "REFINED_TITANIUM:8"] }
+  ]
+}

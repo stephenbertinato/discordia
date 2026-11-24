@@ -1,0 +1,3111 @@
+{
+  "_source": "https://hypixelskyblock.minecraft.wiki/w/Kat/Costs (official Hypixel SkyBlock Wiki), fetched 2026-11-24; material ids resolved via https://api.hypixel.net/v2/resources/skyblock/items",
+  "_notes": "Coin costs are base (Lv 1) prices; Kat subtracts 0.3% per pet level. Times include no Kat Flower/Bouquet skip.",
+  "upgrades": [
+    {
+      "pet": "ARMADILLO",
+      "name": "Armadillo",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 10000,
+      "seconds": 10800,
+      "materials": []
+    },
+    {
+      "pet": "ARMADILLO",
+      "name": "Armadillo",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 30000,
+      "seconds": 36000,
+      "materials": []
+    },
+    {
+      "pet": "ARMADILLO",
+      "name": "Armadillo",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 250000,
+      "seconds": 172800,
+      "materials": []
+    },
+    {
+      "pet": "ARMADILLO",
+      "name": "Armadillo",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 1000000,
+      "seconds": 432000,
+      "materials": []
+    },
+    {
+      "pet": "ARMADILLO",
+      "name": "Armadillo",
+      "from": "LEGENDARY",
+      "to": "MYTHIC",
+      "coins": 1500000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Frozen Scute",
+          "id": "FROZEN_SCUTE",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "BABY_YETI",
+      "name": "Baby Yeti",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 50000,
+      "seconds": 86400,
+      "materials": [
+        {
+          "name": "Hunk of Ice",
+          "id": "ICE_HUNK",
+          "count": 32
+        }
+      ]
+    },
+    {
+      "pet": "BABY_YETI",
+      "name": "Baby Yeti",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 100000,
+      "seconds": 172800,
+      "materials": [
+        {
+          "name": "Hunk of Ice",
+          "id": "ICE_HUNK",
+          "count": 64
+        }
+      ]
+    },
+    {
+      "pet": "BABY_YETI",
+      "name": "Baby Yeti",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 250000,
+      "seconds": 259200,
+      "materials": [
+        {
+          "name": "Hunk of Ice",
+          "id": "ICE_HUNK",
+          "count": 128
+        }
+      ]
+    },
+    {
+      "pet": "BABY_YETI",
+      "name": "Baby Yeti",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 500000,
+      "seconds": 345600,
+      "materials": [
+        {
+          "name": "Hunk of Blue Ice",
+          "id": "BLUE_ICE_HUNK",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "pet": "BABY_YETI",
+      "name": "Baby Yeti",
+      "from": "LEGENDARY",
+      "to": "MYTHIC",
+      "coins": 1000000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Pocket-sized Igloo",
+          "id": "POCKET_SIZED_IGLOO",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "BAL",
+      "name": "Bal",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 2000000,
+      "seconds": 864000,
+      "materials": [
+        {
+          "name": "Yoggie",
+          "id": "YOGGIE",
+          "count": 100
+        }
+      ]
+    },
+    {
+      "pet": "BAT",
+      "name": "Bat",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 5000,
+      "seconds": 300,
+      "materials": [
+        {
+          "name": "Red Mushroom",
+          "id": "RED_MUSHROOM",
+          "count": 256
+        },
+        {
+          "name": "Brown Mushroom",
+          "id": "BUILDER_BROWN_MUSHROOM",
+          "count": 256
+        }
+      ]
+    },
+    {
+      "pet": "BAT",
+      "name": "Bat",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 10000,
+      "seconds": 600,
+      "materials": [
+        {
+          "name": "Enchanted Red Mushroom",
+          "id": "ENCHANTED_RED_MUSHROOM",
+          "count": 4
+        },
+        {
+          "name": "Enchanted Brown Mushroom",
+          "id": "ENCHANTED_BROWN_MUSHROOM",
+          "count": 4
+        }
+      ]
+    },
+    {
+      "pet": "BAT",
+      "name": "Bat",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 25000,
+      "seconds": 900,
+      "materials": [
+        {
+          "name": "Enchanted Red Mushroom",
+          "id": "ENCHANTED_RED_MUSHROOM",
+          "count": 8
+        },
+        {
+          "name": "Enchanted Brown Mushroom",
+          "id": "ENCHANTED_BROWN_MUSHROOM",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "pet": "BAT",
+      "name": "Bat",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 50000,
+      "seconds": 1800,
+      "materials": [
+        {
+          "name": "Enchanted Red Mushroom",
+          "id": "ENCHANTED_RED_MUSHROOM",
+          "count": 16
+        },
+        {
+          "name": "Enchanted Brown Mushroom",
+          "id": "ENCHANTED_BROWN_MUSHROOM",
+          "count": 16
+        }
+      ]
+    },
+    {
+      "pet": "BAT",
+      "name": "Bat",
+      "from": "LEGENDARY",
+      "to": "MYTHIC",
+      "coins": 100000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Enchanted Red Mushroom",
+          "id": "ENCHANTED_RED_MUSHROOM",
+          "count": 32
+        },
+        {
+          "name": "Enchanted Brown Mushroom",
+          "id": "ENCHANTED_BROWN_MUSHROOM",
+          "count": 32
+        },
+        {
+          "name": "Vampire Fang",
+          "id": "PET_ITEM_VAMPIRE_FANG",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "BEE",
+      "name": "Bee",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 0,
+      "seconds": 60,
+      "materials": [
+        {
+          "name": "Small Honey Dipper",
+          "id": "SMALL_HONEY_DIPPER",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "BEE",
+      "name": "Bee",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 0,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Medium Honey Dipper",
+          "id": "MEDIUM_HONEY_DIPPER",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "BEE",
+      "name": "Bee",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 0,
+      "seconds": 86400,
+      "materials": [
+        {
+          "name": "Large Honey Dipper",
+          "id": "LARGE_HONEY_DIPPER",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "BEE",
+      "name": "Bee",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 0,
+      "seconds": 259200,
+      "materials": [
+        {
+          "name": "Giant Honey Dipper",
+          "id": "GIANT_HONEY_DIPPER",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "BEE",
+      "name": "Bee",
+      "from": "LEGENDARY",
+      "to": "MYTHIC",
+      "coins": 10000000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Royal Jelly",
+          "id": "ROYAL_JELLY",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "BLACK_CAT",
+      "name": "Black Cat",
+      "from": "LEGENDARY",
+      "to": "MYTHIC",
+      "coins": 1000000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Black Woolen Yarn",
+          "id": "BLACK_WOOLEN_YARN",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "BLAZE",
+      "name": "Blaze",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 250000,
+      "seconds": 86400,
+      "materials": [
+        {
+          "name": "Enchanted Blaze Powder",
+          "id": "ENCHANTED_BLAZE_POWDER",
+          "count": 128
+        }
+      ]
+    },
+    {
+      "pet": "BLAZE",
+      "name": "Blaze",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 500000,
+      "seconds": 172800,
+      "materials": [
+        {
+          "name": "Enchanted Blaze Powder",
+          "id": "ENCHANTED_BLAZE_POWDER",
+          "count": 256
+        }
+      ]
+    },
+    {
+      "pet": "BLAZE",
+      "name": "Blaze",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 1000000,
+      "seconds": 259200,
+      "materials": [
+        {
+          "name": "Enchanted Blaze Powder",
+          "id": "ENCHANTED_BLAZE_POWDER",
+          "count": 512
+        }
+      ]
+    },
+    {
+      "pet": "BLAZE",
+      "name": "Blaze",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 2500000,
+      "seconds": 432000,
+      "materials": [
+        {
+          "name": "Enchanted Blaze Rod",
+          "id": "ENCHANTED_BLAZE_ROD",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "pet": "BLUE_WHALE",
+      "name": "Blue Whale",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 15000,
+      "seconds": 86400,
+      "materials": []
+    },
+    {
+      "pet": "BLUE_WHALE",
+      "name": "Blue Whale",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 75000,
+      "seconds": 172800,
+      "materials": []
+    },
+    {
+      "pet": "BLUE_WHALE",
+      "name": "Blue Whale",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 900000,
+      "seconds": 604800,
+      "materials": [
+        {
+          "name": "Enchanted Cooked Cod",
+          "id": "ENCHANTED_COOKED_FISH",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "BLUE_WHALE",
+      "name": "Blue Whale",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 9000000,
+      "seconds": 1036800,
+      "materials": [
+        {
+          "name": "Enchanted Cooked Cod",
+          "id": "ENCHANTED_COOKED_FISH",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "pet": "CHICKEN",
+      "name": "Chicken",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 500,
+      "seconds": 10,
+      "materials": [
+        {
+          "name": "Raw Chicken",
+          "id": "RAW_CHICKEN",
+          "count": 128
+        },
+        {
+          "name": "Feather",
+          "id": "FEATHER",
+          "count": 128
+        }
+      ]
+    },
+    {
+      "pet": "CHICKEN",
+      "name": "Chicken",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 2500,
+      "seconds": 20,
+      "materials": [
+        {
+          "name": "Raw Chicken",
+          "id": "RAW_CHICKEN",
+          "count": 256
+        },
+        {
+          "name": "Feather",
+          "id": "FEATHER",
+          "count": 256
+        }
+      ]
+    },
+    {
+      "pet": "CHICKEN",
+      "name": "Chicken",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 5000,
+      "seconds": 30,
+      "materials": [
+        {
+          "name": "Raw Chicken",
+          "id": "RAW_CHICKEN",
+          "count": 512
+        },
+        {
+          "name": "Feather",
+          "id": "FEATHER",
+          "count": 512
+        }
+      ]
+    },
+    {
+      "pet": "CHICKEN",
+      "name": "Chicken",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 10000,
+      "seconds": 45,
+      "materials": [
+        {
+          "name": "Enchanted Raw Chicken",
+          "id": "ENCHANTED_RAW_CHICKEN",
+          "count": 8
+        },
+        {
+          "name": "Enchanted Feather",
+          "id": "ENCHANTED_FEATHER",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "pet": "CROW",
+      "name": "Crow",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 250000,
+      "seconds": 86400,
+      "materials": [
+        {
+          "name": "Enchanted Moonflower",
+          "id": "ENCHANTED_MOONFLOWER",
+          "count": 128
+        }
+      ]
+    },
+    {
+      "pet": "CROW",
+      "name": "Crow",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 1000000,
+      "seconds": 172800,
+      "materials": [
+        {
+          "name": "Compacted Moonflower",
+          "id": "COMPACTED_MOONFLOWER",
+          "count": 4
+        },
+        {
+          "name": "Veilshroom",
+          "id": "VEILSHROOM",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "pet": "CROW",
+      "name": "Crow",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 5000000,
+      "seconds": 259200,
+      "materials": [
+        {
+          "name": "Compacted Moonflower",
+          "id": "COMPACTED_MOONFLOWER",
+          "count": 8
+        },
+        {
+          "name": "Duskbloom",
+          "id": "DUSKBLOOM",
+          "count": 4
+        }
+      ]
+    },
+    {
+      "pet": "CROW",
+      "name": "Crow",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 10000000,
+      "seconds": 432000,
+      "materials": [
+        {
+          "name": "Compacted Moonflower",
+          "id": "COMPACTED_MOONFLOWER",
+          "count": 160
+        },
+        {
+          "name": "Do-not-eat-shroom",
+          "id": "DO_NOT_EAT_SHROOM",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "pet": "DOLPHIN",
+      "name": "Dolphin",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 100000,
+      "seconds": 86400,
+      "materials": []
+    },
+    {
+      "pet": "DOLPHIN",
+      "name": "Dolphin",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 1000000,
+      "seconds": 172800,
+      "materials": []
+    },
+    {
+      "pet": "DOLPHIN",
+      "name": "Dolphin",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 10000000,
+      "seconds": 604800,
+      "materials": []
+    },
+    {
+      "pet": "DOLPHIN",
+      "name": "Dolphin",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 50000000,
+      "seconds": 1209600,
+      "materials": [
+        {
+          "name": "Enchanted Raw Cod",
+          "id": "ENCHANTED_RAW_FISH",
+          "count": 16
+        }
+      ]
+    },
+    {
+      "pet": "ELEPHANT",
+      "name": "Elephant",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 15000,
+      "seconds": 21600,
+      "materials": []
+    },
+    {
+      "pet": "ELEPHANT",
+      "name": "Elephant",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 75000,
+      "seconds": 72000,
+      "materials": []
+    },
+    {
+      "pet": "ELEPHANT",
+      "name": "Elephant",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 900000,
+      "seconds": 432000,
+      "materials": []
+    },
+    {
+      "pet": "ELEPHANT",
+      "name": "Elephant",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 14000000,
+      "seconds": 864000,
+      "materials": []
+    },
+    {
+      "pet": "ELEPHANT",
+      "name": "Elephant",
+      "from": "LEGENDARY",
+      "to": "MYTHIC",
+      "coins": 10000000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Trunk Polish",
+          "id": "TRUNK_POLISH",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "ENDER_DRAGON",
+      "name": "Ender Dragon",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 400000000,
+      "seconds": 1728000,
+      "materials": [
+        {
+          "name": "Summoning Eye",
+          "id": "SUMMONING_EYE",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "pet": "ENDERMAN",
+      "name": "Enderman",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 1000,
+      "seconds": 86400,
+      "materials": []
+    },
+    {
+      "pet": "ENDERMAN",
+      "name": "Enderman",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 5000,
+      "seconds": 172800,
+      "materials": []
+    },
+    {
+      "pet": "ENDERMAN",
+      "name": "Enderman",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 10000,
+      "seconds": 518400,
+      "materials": []
+    },
+    {
+      "pet": "ENDERMAN",
+      "name": "Enderman",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 40000000,
+      "seconds": 1036800,
+      "materials": [
+        {
+          "name": "Enchanted Eye of Ender",
+          "id": "ENCHANTED_EYE_OF_ENDER",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "pet": "ENDERMAN",
+      "name": "Enderman",
+      "from": "LEGENDARY",
+      "to": "MYTHIC",
+      "coins": 1000000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Enderman Cortex Rewriter",
+          "id": "ENDERMAN_CORTEX_REWRITER",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "ENDERMITE",
+      "name": "Endermite",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 5000,
+      "seconds": 300,
+      "materials": [
+        {
+          "name": "End Stone",
+          "id": "ENDER_STONE",
+          "count": 512
+        }
+      ]
+    },
+    {
+      "pet": "ENDERMITE",
+      "name": "Endermite",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 10000,
+      "seconds": 600,
+      "materials": [
+        {
+          "name": "Enchanted End Stone",
+          "id": "ENCHANTED_ENDSTONE",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "pet": "ENDERMITE",
+      "name": "Endermite",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 25000,
+      "seconds": 900,
+      "materials": [
+        {
+          "name": "Enchanted End Stone",
+          "id": "ENCHANTED_ENDSTONE",
+          "count": 16
+        },
+        {
+          "name": "Mite Gel",
+          "id": "MITE_GEL",
+          "count": 32
+        }
+      ]
+    },
+    {
+      "pet": "ENDERMITE",
+      "name": "Endermite",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 250000,
+      "seconds": 1800,
+      "materials": [
+        {
+          "name": "Enchanted End Stone",
+          "id": "ENCHANTED_ENDSTONE",
+          "count": 32
+        },
+        {
+          "name": "Mite Gel",
+          "id": "MITE_GEL",
+          "count": 64
+        }
+      ]
+    },
+    {
+      "pet": "ENDERMITE",
+      "name": "Endermite",
+      "from": "LEGENDARY",
+      "to": "MYTHIC",
+      "coins": 100000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Mixed Mite Gel",
+          "id": "MIXED_MITE_GEL",
+          "count": 1
+        },
+        {
+          "name": "Enchanted End Stone",
+          "id": "ENCHANTED_ENDSTONE",
+          "count": 64
+        }
+      ]
+    },
+    {
+      "pet": "FLYING_FISH",
+      "name": "Flying Fish",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 250000,
+      "seconds": 432000,
+      "materials": []
+    },
+    {
+      "pet": "FLYING_FISH",
+      "name": "Flying Fish",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 1000000,
+      "seconds": 864000,
+      "materials": [
+        {
+          "name": "Enchanted Raw Cod",
+          "id": "ENCHANTED_RAW_FISH",
+          "count": 64
+        }
+      ]
+    },
+    {
+      "pet": "FLYING_FISH",
+      "name": "Flying Fish",
+      "from": "LEGENDARY",
+      "to": "MYTHIC",
+      "coins": 1000000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Radioactive Vial",
+          "id": "RADIOACTIVE_VIAL",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "FROG",
+      "name": "Frog",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 10000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Small Frog Treat",
+          "id": "SMALL_FROG_TREAT",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "FROG",
+      "name": "Frog",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 50000,
+      "seconds": 7200,
+      "materials": [
+        {
+          "name": "Medium Frog Treat",
+          "id": "MEDIUM_FROG_TREAT",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "FROG",
+      "name": "Frog",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 200000,
+      "seconds": 10800,
+      "materials": [
+        {
+          "name": "Large Frog Treat",
+          "id": "LARGE_FROG_TREAT",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "FROG",
+      "name": "Frog",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 1000000,
+      "seconds": 14400,
+      "materials": [
+        {
+          "name": "Giant Frog Treat",
+          "id": "GIANT_FROG_TREAT",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "FROG",
+      "name": "Frog",
+      "from": "LEGENDARY",
+      "to": "MYTHIC",
+      "coins": 1000000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Frogspawn Bucket",
+          "id": "BUCKET_OF_FROGSPAWN",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "GHOUL",
+      "name": "Ghoul",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 5000000,
+      "seconds": 864000,
+      "materials": [
+        {
+          "name": "Revenant Flesh",
+          "id": "REVENANT_FLESH",
+          "count": 512
+        }
+      ]
+    },
+    {
+      "pet": "GIRAFFE",
+      "name": "Giraffe",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 15000,
+      "seconds": 86400,
+      "materials": [
+        {
+          "name": "Enchanted Acacia Log",
+          "id": "ENCHANTED_ACACIA_LOG",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "GIRAFFE",
+      "name": "Giraffe",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 75000,
+      "seconds": 172800,
+      "materials": [
+        {
+          "name": "Enchanted Acacia Log",
+          "id": "ENCHANTED_ACACIA_LOG",
+          "count": 16
+        }
+      ]
+    },
+    {
+      "pet": "GIRAFFE",
+      "name": "Giraffe",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 900000,
+      "seconds": 604800,
+      "materials": [
+        {
+          "name": "Enchanted Acacia Log",
+          "id": "ENCHANTED_ACACIA_LOG",
+          "count": 128
+        }
+      ]
+    },
+    {
+      "pet": "GIRAFFE",
+      "name": "Giraffe",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 9000000,
+      "seconds": 1036800,
+      "materials": [
+        {
+          "name": "Enchanted Acacia Log",
+          "id": "ENCHANTED_ACACIA_LOG",
+          "count": 512
+        }
+      ]
+    },
+    {
+      "pet": "GLACITE_GOLEM",
+      "name": "Glacite Golem",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 250000,
+      "seconds": 86400,
+      "materials": [
+        {
+          "name": "Enchanted Glacite",
+          "id": "ENCHANTED_GLACITE",
+          "count": 128
+        }
+      ]
+    },
+    {
+      "pet": "GLACITE_GOLEM",
+      "name": "Glacite Golem",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 500000,
+      "seconds": 172800,
+      "materials": [
+        {
+          "name": "Enchanted Glacite",
+          "id": "ENCHANTED_GLACITE",
+          "count": 256
+        }
+      ]
+    },
+    {
+      "pet": "GLACITE_GOLEM",
+      "name": "Glacite Golem",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 1000000,
+      "seconds": 259200,
+      "materials": [
+        {
+          "name": "Enchanted Glacite",
+          "id": "ENCHANTED_GLACITE",
+          "count": 512
+        }
+      ]
+    },
+    {
+      "pet": "GLACITE_GOLEM",
+      "name": "Glacite Golem",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 2500000,
+      "seconds": 432000,
+      "materials": [
+        {
+          "name": "Glacite Amalgamation",
+          "id": "GLACITE_AMALGAMATION",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "pet": "GOLEM",
+      "name": "Golem",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 10000000,
+      "seconds": 1728000,
+      "materials": [
+        {
+          "name": "Enchanted Iron Block",
+          "id": "ENCHANTED_IRON_BLOCK",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "pet": "GRIFFIN",
+      "name": "Griffin",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 100,
+      "seconds": 60,
+      "materials": [
+        {
+          "name": "Uncommon Griffin Upgrade Stone",
+          "id": "GRIFFIN_UPGRADE_STONE_UNCOMMON",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "GRIFFIN",
+      "name": "Griffin",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 10000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Rare Griffin Upgrade Stone",
+          "id": "GRIFFIN_UPGRADE_STONE_RARE",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "GRIFFIN",
+      "name": "Griffin",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 250000,
+      "seconds": 86400,
+      "materials": [
+        {
+          "name": "Epic Griffin Upgrade Stone",
+          "id": "GRIFFIN_UPGRADE_STONE_EPIC",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "GRIFFIN",
+      "name": "Griffin",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 500000,
+      "seconds": 259200,
+      "materials": [
+        {
+          "name": "Legendary Griffin Upgrade Stone",
+          "id": "GRIFFIN_UPGRADE_STONE_LEGENDARY",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "GRIFFIN",
+      "name": "Griffin",
+      "from": "LEGENDARY",
+      "to": "MYTHIC",
+      "coins": 1000000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Mythic Griffin Upgrade Stone",
+          "id": "GRIFFIN_UPGRADE_STONE_MYTHIC",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "GUARDIAN",
+      "name": "Guardian",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 20000,
+      "seconds": 3600,
+      "materials": []
+    },
+    {
+      "pet": "GUARDIAN",
+      "name": "Guardian",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 100000,
+      "seconds": 21600,
+      "materials": []
+    },
+    {
+      "pet": "GUARDIAN",
+      "name": "Guardian",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 500000,
+      "seconds": 172800,
+      "materials": []
+    },
+    {
+      "pet": "GUARDIAN",
+      "name": "Guardian",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 3000000,
+      "seconds": 432000,
+      "materials": [
+        {
+          "name": "Enchanted Prismarine Shard",
+          "id": "ENCHANTED_PRISMARINE_SHARD",
+          "count": 64
+        }
+      ]
+    },
+    {
+      "pet": "GUARDIAN",
+      "name": "Guardian",
+      "from": "LEGENDARY",
+      "to": "MYTHIC",
+      "coins": 1000000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Guardian Lucky Block",
+          "id": "GUARDIAN_LUCKY_BLOCK",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "HERMIT_CRAB",
+      "name": "Hermit Crab",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 10000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Rusty Coin",
+          "id": "RUSTY_COIN",
+          "count": 4
+        }
+      ]
+    },
+    {
+      "pet": "HERMIT_CRAB",
+      "name": "Hermit Crab",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 50000,
+      "seconds": 7200,
+      "materials": [
+        {
+          "name": "Rusty Coin",
+          "id": "RUSTY_COIN",
+          "count": 16
+        }
+      ]
+    },
+    {
+      "pet": "HERMIT_CRAB",
+      "name": "Hermit Crab",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 200000,
+      "seconds": 21600,
+      "materials": [
+        {
+          "name": "Busted Belt Buckle",
+          "id": "BUSTED_BELT_BUCKLE",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "pet": "HERMIT_CRAB",
+      "name": "Hermit Crab",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 1000000,
+      "seconds": 172800,
+      "materials": [
+        {
+          "name": "Old Leather Boot",
+          "id": "OLD_LEATHER_BOOT",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "HERMIT_CRAB",
+      "name": "Hermit Crab",
+      "from": "LEGENDARY",
+      "to": "MYTHIC",
+      "coins": 1000000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Scuttler Shell",
+          "id": "SCUTTLER_SHELL",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "HORSE",
+      "name": "Horse",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 500,
+      "seconds": 10,
+      "materials": [
+        {
+          "name": "Leather",
+          "id": "LEATHER",
+          "count": 128
+        }
+      ]
+    },
+    {
+      "pet": "HORSE",
+      "name": "Horse",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 2500,
+      "seconds": 20,
+      "materials": [
+        {
+          "name": "Leather",
+          "id": "LEATHER",
+          "count": 256
+        }
+      ]
+    },
+    {
+      "pet": "HORSE",
+      "name": "Horse",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 5000,
+      "seconds": 30,
+      "materials": [
+        {
+          "name": "Leather",
+          "id": "LEATHER",
+          "count": 512
+        }
+      ]
+    },
+    {
+      "pet": "HORSE",
+      "name": "Horse",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 10000,
+      "seconds": 45,
+      "materials": [
+        {
+          "name": "Enchanted Leather",
+          "id": "ENCHANTED_LEATHER",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "pet": "HOUND",
+      "name": "Hound",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 5000000,
+      "seconds": 864000,
+      "materials": [
+        {
+          "name": "Wolf Tooth",
+          "id": "WOLF_TOOTH",
+          "count": 512
+        }
+      ]
+    },
+    {
+      "pet": "JELLYFISH",
+      "name": "Jellyfish",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 15000000,
+      "seconds": 864000,
+      "materials": [
+        {
+          "name": "Enchanted Slimeball",
+          "id": "ENCHANTED_SLIME_BALL",
+          "count": 16
+        }
+      ]
+    },
+    {
+      "pet": "JERRY",
+      "name": "Jerry",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 500,
+      "seconds": 10,
+      "materials": [
+        {
+          "name": "Move Jerry",
+          "id": "ASSISTANT",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "JERRY",
+      "name": "Jerry",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 2500,
+      "seconds": 20,
+      "materials": [
+        {
+          "name": "Move Jerry",
+          "id": "ASSISTANT",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "JERRY",
+      "name": "Jerry",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 5000,
+      "seconds": 30,
+      "materials": [
+        {
+          "name": "Move Jerry",
+          "id": "ASSISTANT",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "JERRY",
+      "name": "Jerry",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 10000,
+      "seconds": 45,
+      "materials": [
+        {
+          "name": "Move Jerry",
+          "id": "ASSISTANT",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "JERRY",
+      "name": "Jerry",
+      "from": "LEGENDARY",
+      "to": "MYTHIC",
+      "coins": 25000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Jerry 3D Glasses",
+          "id": "PET_ITEM_TOY_JERRY",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "LION",
+      "name": "Lion",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 15000,
+      "seconds": 86400,
+      "materials": []
+    },
+    {
+      "pet": "LION",
+      "name": "Lion",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 75000,
+      "seconds": 172800,
+      "materials": []
+    },
+    {
+      "pet": "LION",
+      "name": "Lion",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 900000,
+      "seconds": 604800,
+      "materials": []
+    },
+    {
+      "pet": "LION",
+      "name": "Lion",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 14000000,
+      "seconds": 1036800,
+      "materials": [
+        {
+          "name": "Enchanted Raw Beef",
+          "id": "ENCHANTED_RAW_BEEF",
+          "count": 1024
+        }
+      ]
+    },
+    {
+      "pet": "MAGMA_CUBE",
+      "name": "Magma Cube",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 2500,
+      "seconds": 7200,
+      "materials": []
+    },
+    {
+      "pet": "MAGMA_CUBE",
+      "name": "Magma Cube",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 5000,
+      "seconds": 72000,
+      "materials": []
+    },
+    {
+      "pet": "MAGMA_CUBE",
+      "name": "Magma Cube",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 100000,
+      "seconds": 432000,
+      "materials": []
+    },
+    {
+      "pet": "MAGMA_CUBE",
+      "name": "Magma Cube",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 500000,
+      "seconds": 864000,
+      "materials": [
+        {
+          "name": "Enchanted Magma Cream",
+          "id": "ENCHANTED_MAGMA_CREAM",
+          "count": 16
+        }
+      ]
+    },
+    {
+      "pet": "MEGALODON",
+      "name": "Megalodon",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 10000000,
+      "seconds": 1728000,
+      "materials": []
+    },
+    {
+      "pet": "MITHRIL_GOLEM",
+      "name": "Mithril Golem",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 5000,
+      "seconds": 300,
+      "materials": [
+        {
+          "name": "Mithril",
+          "id": "MITHRIL_ORE",
+          "count": 512
+        }
+      ]
+    },
+    {
+      "pet": "MITHRIL_GOLEM",
+      "name": "Mithril Golem",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 10000,
+      "seconds": 600,
+      "materials": [
+        {
+          "name": "Enchanted Mithril",
+          "id": "ENCHANTED_MITHRIL",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "pet": "MITHRIL_GOLEM",
+      "name": "Mithril Golem",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 25000,
+      "seconds": 900,
+      "materials": [
+        {
+          "name": "Enchanted Mithril",
+          "id": "ENCHANTED_MITHRIL",
+          "count": 16
+        }
+      ]
+    },
+    {
+      "pet": "MITHRIL_GOLEM",
+      "name": "Mithril Golem",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 50000,
+      "seconds": 1800,
+      "materials": [
+        {
+          "name": "Enchanted Mithril",
+          "id": "ENCHANTED_MITHRIL",
+          "count": 32
+        }
+      ]
+    },
+    {
+      "pet": "MITHRIL_GOLEM",
+      "name": "Mithril Golem",
+      "from": "LEGENDARY",
+      "to": "MYTHIC",
+      "coins": 100000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Enchanted Mithril",
+          "id": "ENCHANTED_MITHRIL",
+          "count": 64
+        },
+        {
+          "name": "Pure Mithril Gem",
+          "id": "PET_ITEM_PURE_MITHRIL_GEM",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "MONKEY",
+      "name": "Monkey",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 15000,
+      "seconds": 86400,
+      "materials": []
+    },
+    {
+      "pet": "MONKEY",
+      "name": "Monkey",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 75000,
+      "seconds": 172800,
+      "materials": []
+    },
+    {
+      "pet": "MONKEY",
+      "name": "Monkey",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 900000,
+      "seconds": 604800,
+      "materials": []
+    },
+    {
+      "pet": "MONKEY",
+      "name": "Monkey",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 17000000,
+      "seconds": 1036800,
+      "materials": []
+    },
+    {
+      "pet": "MOOSHROOM_COW",
+      "name": "Mooshroom Cow",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 25000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Enchanted Mycelium",
+          "id": "ENCHANTED_MYCELIUM",
+          "count": 16
+        }
+      ]
+    },
+    {
+      "pet": "MOOSHROOM_COW",
+      "name": "Mooshroom Cow",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 50000,
+      "seconds": 10800,
+      "materials": [
+        {
+          "name": "Enchanted Mycelium",
+          "id": "ENCHANTED_MYCELIUM",
+          "count": 32
+        }
+      ]
+    },
+    {
+      "pet": "MOOSHROOM_COW",
+      "name": "Mooshroom Cow",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 100000,
+      "seconds": 21600,
+      "materials": [
+        {
+          "name": "Digested Mushrooms",
+          "id": "DIGESTED_MUSHROOMS",
+          "count": 32
+        },
+        {
+          "name": "Enchanted Mycelium",
+          "id": "ENCHANTED_MYCELIUM",
+          "count": 64
+        }
+      ]
+    },
+    {
+      "pet": "MOOSHROOM_COW",
+      "name": "Mooshroom Cow",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 250000,
+      "seconds": 43200,
+      "materials": [
+        {
+          "name": "Digested Mushrooms",
+          "id": "DIGESTED_MUSHROOMS",
+          "count": 64
+        },
+        {
+          "name": "Enchanted Mycelium",
+          "id": "ENCHANTED_MYCELIUM",
+          "count": 128
+        }
+      ]
+    },
+    {
+      "pet": "MOSQUITO",
+      "name": "Mosquito",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 250000,
+      "seconds": 86400,
+      "materials": [
+        {
+          "name": "Tarantula Silk",
+          "id": "TARANTULA_SILK",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "pet": "MOSQUITO",
+      "name": "Mosquito",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 500000,
+      "seconds": 172800,
+      "materials": [
+        {
+          "name": "Tarantula Silk",
+          "id": "TARANTULA_SILK",
+          "count": 16
+        }
+      ]
+    },
+    {
+      "pet": "MOSQUITO",
+      "name": "Mosquito",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 1000000,
+      "seconds": 259200,
+      "materials": [
+        {
+          "name": "Tarantula Silk",
+          "id": "TARANTULA_SILK",
+          "count": 32
+        }
+      ]
+    },
+    {
+      "pet": "MOSQUITO",
+      "name": "Mosquito",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 2500000,
+      "seconds": 432000,
+      "materials": [
+        {
+          "name": "Tarantula Silk",
+          "id": "TARANTULA_SILK",
+          "count": 64
+        }
+      ]
+    },
+    {
+      "pet": "OCELOT",
+      "name": "Ocelot",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 5000,
+      "seconds": 300,
+      "materials": [
+        {
+          "name": "Jungle Log",
+          "id": "LOG:3",
+          "count": 512
+        }
+      ]
+    },
+    {
+      "pet": "OCELOT",
+      "name": "Ocelot",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 10000,
+      "seconds": 600,
+      "materials": [
+        {
+          "name": "Enchanted Jungle Log",
+          "id": "ENCHANTED_JUNGLE_LOG",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "pet": "OCELOT",
+      "name": "Ocelot",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 25000,
+      "seconds": 900,
+      "materials": [
+        {
+          "name": "Enchanted Jungle Log",
+          "id": "ENCHANTED_JUNGLE_LOG",
+          "count": 16
+        }
+      ]
+    },
+    {
+      "pet": "OCELOT",
+      "name": "Ocelot",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 50000,
+      "seconds": 1800,
+      "materials": [
+        {
+          "name": "Enchanted Jungle Log",
+          "id": "ENCHANTED_JUNGLE_LOG",
+          "count": 32
+        }
+      ]
+    },
+    {
+      "pet": "PARROT",
+      "name": "Parrot",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 15000000,
+      "seconds": 864000,
+      "materials": [
+        {
+          "name": "Enchanted Feather",
+          "id": "ENCHANTED_FEATHER",
+          "count": 16
+        }
+      ]
+    },
+    {
+      "pet": "PHOENIX",
+      "name": "Phoenix",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 100000000,
+      "seconds": 1728000,
+      "materials": [
+        {
+          "name": "Enchanted Blaze Powder",
+          "id": "ENCHANTED_BLAZE_POWDER",
+          "count": 1024
+        }
+      ]
+    },
+    {
+      "pet": "PIG",
+      "name": "Pig",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 100,
+      "seconds": 60,
+      "materials": [
+        {
+          "name": "Small Pig's Ear",
+          "id": "SMALL_PIG_EAR",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "PIG",
+      "name": "Pig",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 10000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Medium Pig's Ear",
+          "id": "MEDIUM_PIG_EAR",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "PIG",
+      "name": "Pig",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 250000,
+      "seconds": 86400,
+      "materials": [
+        {
+          "name": "Large Pig's Ear",
+          "id": "LARGE_PIG_EAR",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "PIG",
+      "name": "Pig",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 500000,
+      "seconds": 259200,
+      "materials": [
+        {
+          "name": "Giant Pig's Ear",
+          "id": "GIANT_PIG_EAR",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "PIGMAN",
+      "name": "Pigman",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 25000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Enchanted Raw Porkchop",
+          "id": "ENCHANTED_PORK",
+          "count": 16
+        }
+      ]
+    },
+    {
+      "pet": "PIGMAN",
+      "name": "Pigman",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 50000,
+      "seconds": 10800,
+      "materials": [
+        {
+          "name": "Enchanted Raw Porkchop",
+          "id": "ENCHANTED_PORK",
+          "count": 32
+        }
+      ]
+    },
+    {
+      "pet": "PIGMAN",
+      "name": "Pigman",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 100000,
+      "seconds": 21600,
+      "materials": [
+        {
+          "name": "Enchanted Raw Porkchop",
+          "id": "ENCHANTED_PORK",
+          "count": 64
+        }
+      ]
+    },
+    {
+      "pet": "PIGMAN",
+      "name": "Pigman",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 250000,
+      "seconds": 43200,
+      "materials": [
+        {
+          "name": "Enchanted Raw Porkchop",
+          "id": "ENCHANTED_PORK",
+          "count": 128
+        }
+      ]
+    },
+    {
+      "pet": "RABBIT",
+      "name": "Rabbit",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 5000,
+      "seconds": 300,
+      "materials": [
+        {
+          "name": "Rabbit's Foot",
+          "id": "RABBIT_FOOT",
+          "count": 256
+        },
+        {
+          "name": "Rabbit Hide",
+          "id": "RABBIT_HIDE",
+          "count": 256
+        },
+        {
+          "name": "Raw Rabbit",
+          "id": "RABBIT",
+          "count": 512
+        }
+      ]
+    },
+    {
+      "pet": "RABBIT",
+      "name": "Rabbit",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 10000,
+      "seconds": 600,
+      "materials": [
+        {
+          "name": "Enchanted Rabbit Foot",
+          "id": "ENCHANTED_RABBIT_FOOT",
+          "count": 4
+        },
+        {
+          "name": "Enchanted Rabbit Hide",
+          "id": "ENCHANTED_RABBIT_HIDE",
+          "count": 4
+        },
+        {
+          "name": "Enchanted Raw Rabbit",
+          "id": "ENCHANTED_RABBIT",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "pet": "RABBIT",
+      "name": "Rabbit",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 25000,
+      "seconds": 900,
+      "materials": [
+        {
+          "name": "Enchanted Rabbit Foot",
+          "id": "ENCHANTED_RABBIT_FOOT",
+          "count": 8
+        },
+        {
+          "name": "Enchanted Rabbit Hide",
+          "id": "ENCHANTED_RABBIT_HIDE",
+          "count": 8
+        },
+        {
+          "name": "Enchanted Raw Rabbit",
+          "id": "ENCHANTED_RABBIT",
+          "count": 16
+        }
+      ]
+    },
+    {
+      "pet": "RABBIT",
+      "name": "Rabbit",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 50000,
+      "seconds": 1800,
+      "materials": [
+        {
+          "name": "Enchanted Rabbit Foot",
+          "id": "ENCHANTED_RABBIT_FOOT",
+          "count": 16
+        },
+        {
+          "name": "Enchanted Rabbit Hide",
+          "id": "ENCHANTED_RABBIT_HIDE",
+          "count": 16
+        },
+        {
+          "name": "Enchanted Raw Rabbit",
+          "id": "ENCHANTED_RABBIT",
+          "count": 32
+        }
+      ]
+    },
+    {
+      "pet": "RABBIT",
+      "name": "Rabbit",
+      "from": "LEGENDARY",
+      "to": "MYTHIC",
+      "coins": 100000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Enchanted Rabbit Foot",
+          "id": "ENCHANTED_RABBIT_FOOT",
+          "count": 32
+        },
+        {
+          "name": "Enchanted Rabbit Hide",
+          "id": "ENCHANTED_RABBIT_HIDE",
+          "count": 32
+        },
+        {
+          "name": "Enchanted Raw Rabbit",
+          "id": "ENCHANTED_RABBIT",
+          "count": 64
+        },
+        {
+          "name": "Chocolate Syringe",
+          "id": "PET_ITEM_CHOCOLATE_SYRINGE",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "RAT",
+      "name": "Rat",
+      "from": "LEGENDARY",
+      "to": "MYTHIC",
+      "coins": 1000000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Rat Jetpack",
+          "id": "RAT_JETPACK",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "ROCK",
+      "name": "Rock",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 100000,
+      "seconds": 86400,
+      "materials": []
+    },
+    {
+      "pet": "ROCK",
+      "name": "Rock",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 1000000,
+      "seconds": 172800,
+      "materials": []
+    },
+    {
+      "pet": "ROCK",
+      "name": "Rock",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 10000000,
+      "seconds": 604800,
+      "materials": []
+    },
+    {
+      "pet": "ROCK",
+      "name": "Rock",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 50000000,
+      "seconds": 1209600,
+      "materials": [
+        {
+          "name": "Enchanted Cobblestone",
+          "id": "ENCHANTED_COBBLESTONE",
+          "count": 64
+        }
+      ]
+    },
+    {
+      "pet": "SCATHA",
+      "name": "Scatha",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 125000000,
+      "seconds": 604800,
+      "materials": [
+        {
+          "name": "Enchanted Hard Stone",
+          "id": "ENCHANTED_HARD_STONE",
+          "count": 64
+        }
+      ]
+    },
+    {
+      "pet": "SCATHA",
+      "name": "Scatha",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 250000000,
+      "seconds": 1209600,
+      "materials": [
+        {
+          "name": "Enchanted Hard Stone",
+          "id": "ENCHANTED_HARD_STONE",
+          "count": 256
+        }
+      ]
+    },
+    {
+      "pet": "SEAL",
+      "name": "Seal",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 100,
+      "seconds": 60,
+      "materials": [
+        {
+          "name": "Small Seal Plushie",
+          "id": "SMALL_SEAL_PLUSHIE",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "SEAL",
+      "name": "Seal",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 10000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Medium Seal Plushie",
+          "id": "MEDIUM_SEAL_PLUSHIE",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "SEAL",
+      "name": "Seal",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 250000,
+      "seconds": 86400,
+      "materials": [
+        {
+          "name": "Large Seal Plushie",
+          "id": "LARGE_SEAL_PLUSHIE",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "SEAL",
+      "name": "Seal",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 500000,
+      "seconds": 259200,
+      "materials": [
+        {
+          "name": "Giant Seal Plushie",
+          "id": "GIANT_SEAL_PLUSHIE",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "SHEEP",
+      "name": "Sheep",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 5000,
+      "seconds": 300,
+      "materials": [
+        {
+          "name": "Raw Mutton",
+          "id": "MUTTON",
+          "count": 512
+        },
+        {
+          "name": "White Wool",
+          "id": "WOOL",
+          "count": 512
+        }
+      ]
+    },
+    {
+      "pet": "SHEEP",
+      "name": "Sheep",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 10000,
+      "seconds": 600,
+      "materials": [
+        {
+          "name": "Enchanted Raw Mutton",
+          "id": "ENCHANTED_MUTTON",
+          "count": 8
+        },
+        {
+          "name": "Enchanted Wool",
+          "id": "ENCHANTED_WOOL",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "pet": "SHEEP",
+      "name": "Sheep",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 25000,
+      "seconds": 900,
+      "materials": [
+        {
+          "name": "Enchanted Raw Mutton",
+          "id": "ENCHANTED_MUTTON",
+          "count": 16
+        },
+        {
+          "name": "Enchanted Wool",
+          "id": "ENCHANTED_WOOL",
+          "count": 16
+        }
+      ]
+    },
+    {
+      "pet": "SHEEP",
+      "name": "Sheep",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 50000,
+      "seconds": 1800,
+      "materials": [
+        {
+          "name": "Enchanted Raw Mutton",
+          "id": "ENCHANTED_MUTTON",
+          "count": 32
+        },
+        {
+          "name": "Enchanted Wool",
+          "id": "ENCHANTED_WOOL",
+          "count": 32
+        }
+      ]
+    },
+    {
+      "pet": "SILVERFISH",
+      "name": "Silverfish",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 500,
+      "seconds": 10,
+      "materials": [
+        {
+          "name": "Cobblestone",
+          "id": "COBBLESTONE",
+          "count": 128
+        }
+      ]
+    },
+    {
+      "pet": "SILVERFISH",
+      "name": "Silverfish",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 1000,
+      "seconds": 20,
+      "materials": [
+        {
+          "name": "Cobblestone",
+          "id": "COBBLESTONE",
+          "count": 256
+        }
+      ]
+    },
+    {
+      "pet": "SILVERFISH",
+      "name": "Silverfish",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 5000,
+      "seconds": 30,
+      "materials": [
+        {
+          "name": "Cobblestone",
+          "id": "COBBLESTONE",
+          "count": 512
+        }
+      ]
+    },
+    {
+      "pet": "SILVERFISH",
+      "name": "Silverfish",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 10000,
+      "seconds": 45,
+      "materials": [
+        {
+          "name": "Enchanted Cobblestone",
+          "id": "ENCHANTED_COBBLESTONE",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "pet": "SKELETON",
+      "name": "Skeleton",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 5000,
+      "seconds": 300,
+      "materials": [
+        {
+          "name": "Bone",
+          "id": "BONE",
+          "count": 512
+        }
+      ]
+    },
+    {
+      "pet": "SKELETON",
+      "name": "Skeleton",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 10000,
+      "seconds": 600,
+      "materials": [
+        {
+          "name": "Enchanted Bone",
+          "id": "ENCHANTED_BONE",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "pet": "SKELETON",
+      "name": "Skeleton",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 25000,
+      "seconds": 900,
+      "materials": [
+        {
+          "name": "Enchanted Bone",
+          "id": "ENCHANTED_BONE",
+          "count": 16
+        }
+      ]
+    },
+    {
+      "pet": "SKELETON",
+      "name": "Skeleton",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 50000,
+      "seconds": 1800,
+      "materials": [
+        {
+          "name": "Enchanted Bone",
+          "id": "ENCHANTED_BONE",
+          "count": 32
+        }
+      ]
+    },
+    {
+      "pet": "SLUG",
+      "name": "Slug",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 10000000,
+      "seconds": 604800,
+      "materials": [
+        {
+          "name": "Compost Bundle",
+          "id": "ENCHANTED_COMPOST",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "SNAIL",
+      "name": "Snail",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 25000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Enchanted Red Sand",
+          "id": "ENCHANTED_RED_SAND",
+          "count": 16
+        }
+      ]
+    },
+    {
+      "pet": "SNAIL",
+      "name": "Snail",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 50000,
+      "seconds": 10800,
+      "materials": [
+        {
+          "name": "Enchanted Red Sand",
+          "id": "ENCHANTED_RED_SAND",
+          "count": 32
+        }
+      ]
+    },
+    {
+      "pet": "SNAIL",
+      "name": "Snail",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 100000,
+      "seconds": 21600,
+      "materials": [
+        {
+          "name": "Burning Eye",
+          "id": "BURNING_EYE",
+          "count": 32
+        },
+        {
+          "name": "Enchanted Red Sand",
+          "id": "ENCHANTED_RED_SAND",
+          "count": 64
+        }
+      ]
+    },
+    {
+      "pet": "SNAIL",
+      "name": "Snail",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 250000,
+      "seconds": 43200,
+      "materials": [
+        {
+          "name": "Burning Eye",
+          "id": "BURNING_EYE",
+          "count": 64
+        },
+        {
+          "name": "Enchanted Red Sand",
+          "id": "ENCHANTED_RED_SAND",
+          "count": 128
+        }
+      ]
+    },
+    {
+      "pet": "SNOWMAN",
+      "name": "Snowman",
+      "from": "LEGENDARY",
+      "to": "MYTHIC",
+      "coins": 1000000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Magic Top Hat",
+          "id": "MAGIC_TOP_HAT",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "SPIDER",
+      "name": "Spider",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 5000,
+      "seconds": 300,
+      "materials": [
+        {
+          "name": "String",
+          "id": "STRING",
+          "count": 512
+        },
+        {
+          "name": "Spider Eye",
+          "id": "SPIDER_EYE",
+          "count": 256
+        }
+      ]
+    },
+    {
+      "pet": "SPIDER",
+      "name": "Spider",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 10000,
+      "seconds": 600,
+      "materials": [
+        {
+          "name": "Enchanted String",
+          "id": "ENCHANTED_STRING",
+          "count": 8
+        },
+        {
+          "name": "Enchanted Spider Eye",
+          "id": "ENCHANTED_SPIDER_EYE",
+          "count": 4
+        }
+      ]
+    },
+    {
+      "pet": "SPIDER",
+      "name": "Spider",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 25000,
+      "seconds": 900,
+      "materials": [
+        {
+          "name": "Enchanted String",
+          "id": "ENCHANTED_STRING",
+          "count": 16
+        },
+        {
+          "name": "Enchanted Spider Eye",
+          "id": "ENCHANTED_SPIDER_EYE",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "pet": "SPIDER",
+      "name": "Spider",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 50000,
+      "seconds": 1800,
+      "materials": [
+        {
+          "name": "Enchanted String",
+          "id": "ENCHANTED_STRING",
+          "count": 32
+        },
+        {
+          "name": "Enchanted Spider Eye",
+          "id": "ENCHANTED_SPIDER_EYE",
+          "count": 16
+        }
+      ]
+    },
+    {
+      "pet": "SPIDER",
+      "name": "Spider",
+      "from": "LEGENDARY",
+      "to": "MYTHIC",
+      "coins": 100000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Enchanted String",
+          "id": "ENCHANTED_STRING",
+          "count": 64
+        },
+        {
+          "name": "Enchanted Spider Eye",
+          "id": "ENCHANTED_SPIDER_EYE",
+          "count": 32
+        },
+        {
+          "name": "Fake Neuroscience Degree",
+          "id": "FAKE_NEUROSCIENCE_DEGREE",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "SPIRIT",
+      "name": "Spirit",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 5000000,
+      "seconds": 864000,
+      "materials": [
+        {
+          "name": "Enchanted Ghast Tear",
+          "id": "ENCHANTED_GHAST_TEAR",
+          "count": 64
+        }
+      ]
+    },
+    {
+      "pet": "SQUID",
+      "name": "Squid",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 20000,
+      "seconds": 3600,
+      "materials": []
+    },
+    {
+      "pet": "SQUID",
+      "name": "Squid",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 100000,
+      "seconds": 21600,
+      "materials": []
+    },
+    {
+      "pet": "SQUID",
+      "name": "Squid",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 500000,
+      "seconds": 172800,
+      "materials": []
+    },
+    {
+      "pet": "SQUID",
+      "name": "Squid",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 3000000,
+      "seconds": 432000,
+      "materials": [
+        {
+          "name": "Enchanted Ink Sac",
+          "id": "ENCHANTED_INK_SACK",
+          "count": 64
+        }
+      ]
+    },
+    {
+      "pet": "TARANTULA",
+      "name": "Tarantula",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 5000000,
+      "seconds": 864000,
+      "materials": [
+        {
+          "name": "Tarantula Web",
+          "id": "TARANTULA_WEB",
+          "count": 512
+        }
+      ]
+    },
+    {
+      "pet": "TARANTULA",
+      "name": "Tarantula",
+      "from": "LEGENDARY",
+      "to": "MYTHIC",
+      "coins": 1000000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Fake Neuroscience Degree",
+          "id": "FAKE_NEUROSCIENCE_DEGREE",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "TIGER",
+      "name": "Tiger",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 15000,
+      "seconds": 86400,
+      "materials": []
+    },
+    {
+      "pet": "TIGER",
+      "name": "Tiger",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 75000,
+      "seconds": 172800,
+      "materials": []
+    },
+    {
+      "pet": "TIGER",
+      "name": "Tiger",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 900000,
+      "seconds": 604800,
+      "materials": []
+    },
+    {
+      "pet": "TIGER",
+      "name": "Tiger",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 14000000,
+      "seconds": 1036800,
+      "materials": [
+        {
+          "name": "Enchanted Raw Chicken",
+          "id": "ENCHANTED_RAW_CHICKEN",
+          "count": 1024
+        }
+      ]
+    },
+    {
+      "pet": "TURTLE",
+      "name": "Turtle",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 15000000,
+      "seconds": 864000,
+      "materials": [
+        {
+          "name": "Enchanted Raw Cod",
+          "id": "ENCHANTED_RAW_FISH",
+          "count": 16
+        }
+      ]
+    },
+    {
+      "pet": "WITCH",
+      "name": "Witch",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 100,
+      "seconds": 60,
+      "materials": [
+        {
+          "name": "Small Witch Cauldron",
+          "id": "SMALL_WITCH_CAULDRON",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "WITCH",
+      "name": "Witch",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 10000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Medium Witch Cauldron",
+          "id": "MEDIUM_WITCH_CAULDRON",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "WITCH",
+      "name": "Witch",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 250000,
+      "seconds": 86400,
+      "materials": [
+        {
+          "name": "Large Witch Cauldron",
+          "id": "LARGE_WITCH_CAULDRON",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "WITCH",
+      "name": "Witch",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 500000,
+      "seconds": 259200,
+      "materials": [
+        {
+          "name": "Giant Witch Cauldron",
+          "id": "GIANT_WITCH_CAULDRON",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "pet": "WITHER_SKELETON",
+      "name": "Wither Skeleton",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 25000,
+      "seconds": 3600,
+      "materials": [
+        {
+          "name": "Enchanted Coal",
+          "id": "ENCHANTED_COAL",
+          "count": 16
+        }
+      ]
+    },
+    {
+      "pet": "WITHER_SKELETON",
+      "name": "Wither Skeleton",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 50000,
+      "seconds": 10800,
+      "materials": [
+        {
+          "name": "Enchanted Coal",
+          "id": "ENCHANTED_COAL",
+          "count": 32
+        }
+      ]
+    },
+    {
+      "pet": "WITHER_SKELETON",
+      "name": "Wither Skeleton",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 100000,
+      "seconds": 21600,
+      "materials": [
+        {
+          "name": "Enchanted Coal",
+          "id": "ENCHANTED_COAL",
+          "count": 64
+        }
+      ]
+    },
+    {
+      "pet": "WITHER_SKELETON",
+      "name": "Wither Skeleton",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 250000,
+      "seconds": 43200,
+      "materials": [
+        {
+          "name": "Enchanted Coal",
+          "id": "ENCHANTED_COAL",
+          "count": 128
+        }
+      ]
+    },
+    {
+      "pet": "WOLF",
+      "name": "Wolf",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 5000,
+      "seconds": 300,
+      "materials": [
+        {
+          "name": "Spruce Log",
+          "id": "LOG:1",
+          "count": 512
+        }
+      ]
+    },
+    {
+      "pet": "WOLF",
+      "name": "Wolf",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 10000,
+      "seconds": 600,
+      "materials": [
+        {
+          "name": "Enchanted Spruce Log",
+          "id": "ENCHANTED_SPRUCE_LOG",
+          "count": 8
+        }
+      ]
+    },
+    {
+      "pet": "WOLF",
+      "name": "Wolf",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 25000,
+      "seconds": 900,
+      "materials": [
+        {
+          "name": "Enchanted Spruce Log",
+          "id": "ENCHANTED_SPRUCE_LOG",
+          "count": 16
+        }
+      ]
+    },
+    {
+      "pet": "WOLF",
+      "name": "Wolf",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 50000,
+      "seconds": 1800,
+      "materials": [
+        {
+          "name": "Enchanted Spruce Log",
+          "id": "ENCHANTED_SPRUCE_LOG",
+          "count": 32
+        }
+      ]
+    },
+    {
+      "pet": "ZOMBIE",
+      "name": "Zombie",
+      "from": "COMMON",
+      "to": "UNCOMMON",
+      "coins": 500,
+      "seconds": 10,
+      "materials": [
+        {
+          "name": "Rotten Flesh",
+          "id": "ROTTEN_FLESH",
+          "count": 128
+        }
+      ]
+    },
+    {
+      "pet": "ZOMBIE",
+      "name": "Zombie",
+      "from": "UNCOMMON",
+      "to": "RARE",
+      "coins": 1000,
+      "seconds": 20,
+      "materials": [
+        {
+          "name": "Rotten Flesh",
+          "id": "ROTTEN_FLESH",
+          "count": 256
+        }
+      ]
+    },
+    {
+      "pet": "ZOMBIE",
+      "name": "Zombie",
+      "from": "RARE",
+      "to": "EPIC",
+      "coins": 2500,
+      "seconds": 30,
+      "materials": [
+        {
+          "name": "Rotten Flesh",
+          "id": "ROTTEN_FLESH",
+          "count": 512
+        }
+      ]
+    },
+    {
+      "pet": "ZOMBIE",
+      "name": "Zombie",
+      "from": "EPIC",
+      "to": "LEGENDARY",
+      "coins": 5000,
+      "seconds": 45,
+      "materials": [
+        {
+          "name": "Enchanted Rotten Flesh",
+          "id": "ENCHANTED_ROTTEN_FLESH",
+          "count": 8
+        }
+      ]
+    }
+  ]
+}

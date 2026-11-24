@@ -1,0 +1,11 @@
+{
+  "required": true,
+  "package": "dev.mmm.discordia.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "client": [
+    "ClientPacketListenerMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

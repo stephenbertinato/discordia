@@ -1,0 +1,39 @@
+# Build outputs
+**/build/
+**/out/
+*.class
+*.jar
+
+# Local dependency/tool caches
+**/.tooling/
+**/.gradle/
+**/libs/
+**/run/
+**/collector-state/
+**/.idea/
+**/*.iml
+
+# Local runtime state and configuration
+.minecraft/
+config/
+*.log
+logs/
+
+# Secrets and local environment
+.env
+.env.*
+!.env.example
+*.token
+*.secret
+*credentials*
+*credential*
+
+# Editor/OS noise
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Freebuff Desktop workspace metadata
+.freebuff/
+.cloud-attachments/
