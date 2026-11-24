@@ -39,9 +39,11 @@ from **0 flips before the fix** to a real flip after it.
 
 - The heartbeat interval is now **2 s** (was 5 s). It is a 68 KB request, so the extra cost is
   about 2 MB/hour, and it is what bounds how quickly a new market tick is noticed.
+- The announcement pulse runs at 2 Hz instead of 1 Hz: the scan threads publish asynchronously,
+  and that loop is what turns a result into a chat line, so its period was added to every flip.
 - Measured latency from Hypixel publishing to the chat line: heartbeat request 28–37 ms warm
-  (419 ms cold), page-0 request 70–96 ms, page-0 parse 80–140 ms, announcement pulse ≤ 1 s. A new
-  listing now reaches chat about **3 s** after the tick, instead of about 6 s.
+  (419 ms cold), page-0 request 70–96 ms, page-0 parse 80–140 ms, announcement pulse ≤ 0.5 s. A
+  new listing now reaches chat about **3 s** after the tick, instead of about 6 s.
 
 Two things this release deliberately does **not** do, because they are not available:
 

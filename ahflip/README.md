@@ -620,7 +620,7 @@ Latency from Hypixel publishing a listing to the chat line, measured against a l
 | `/auctions_ended` request | 28–37 ms warm, 419 ms cold |
 | page-0 request | 70–96 ms |
 | page-0 parse | 80–140 ms |
-| announcement pulse | ≤ 1 s |
+| announcement pulse | ≤ 0.5 s |
 
 A new page-0 listing therefore reaches chat about **3 s** after Hypixel publishes the tick, instead
 of about 6 s. The SkyCofl lane polls every 2 s and can be quicker than the page-0 path, but it needs

@@ -233,11 +233,15 @@ public final class DiscordiaClient implements ClientModInitializer {
         return String.join(" ", java.util.Arrays.copyOfRange(parts, from, parts.length)).trim();
     }
 
-    /** Keeps purse/notifications fresh without polling or tracking keyboard input. */
+    /**
+     * Announcement pulse. The scan threads publish results asynchronously; this loop is what turns
+     * them into chat lines, so its period is pure added latency on every flip. Half a second is
+     * cheap (a scoreboard read and a short list walk) and halves the worst-case wait.
+     */
     private void tickLoop() {
         while (!Thread.currentThread().isInterrupted()) {
             try {
-                Thread.sleep(1_000L);
+                Thread.sleep(500L);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
