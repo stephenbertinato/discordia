@@ -103,7 +103,6 @@ for advanced/shared setups.
 /discordia copy                copy the best flip's command
 /discordia margin 10%          minimum auction/snipe margin
 /discordia minprofit 500k      minimum auction/snipe profit
-/discordia maxcost 100m        maximum item cost
 /discordia status              show active values and source health
 /discordia collector           show the automatic collector
 /discordia collector off       return to the local scanner

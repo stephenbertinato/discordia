@@ -1,5 +1,46 @@
 # Changelog
 
+## 1.5.0 — 2026-11-24
+
+### The purse is the only cost ceiling
+
+`maxBudgetShare` and `maxItemCost` are deleted, and `/discordia maxcost` is removed with them.
+`maxCost()` now returns the purse and nothing else: in game the client already re-reads the purse
+every pulse, so a 500M listing is judged on whether you can afford it, not on 25% of a number.
+Asking whether a good flip is "worth it" is the margin gate's job, not a cost cap's.
+
+### The margin hurdle rises with the buy price
+
+A flat 8% is the wrong test for a 500M flip: it treats 40M of locked capital the same as 4M. Below
+`marginScaleFrom` (**10M**) the base `minMarginPct` still applies; every `marginScaleStep`
+(**20M**) above it adds `marginScalePct` (**1%**), up to `maxScaledMarginPct` (**25%**). That is
+8% at 10M, 10% at 50M, 15% at 150M, and the 25% cap past ~310M. The same curve now applies to
+book-only flips, non-BIN snipes and craft flips.
+
+`largeProfitOverride` is gone too. It let any flip with 1M of absolute profit skip the percentage
+gate, which is exactly how a 500M item returning 2% used to be announced. Profit size is no longer
+an argument for a thin return.
+
+### What this broke, and what was actually wrong
+
+Four probe fixtures had been passing only because of that override, and they surfaced one at a
+time during verification:
+
+- the Gyrokinetic weekly-median control made **8.26%** on a 40M entry, which needs 9.5%;
+- the recombobulator control made **9.7%** on a 48M entry, which needs 10%;
+- the partial-blade fixture made **6.4%** on a 30M entry, which needs 9%.
+
+Each fixture was testing something else — the weekly guard, the recomb ceiling, the scroll ceiling —
+so each was given a real gap rather than the gate being softened. The blade case needed a separate
+cheap price (`bladeBook(scrollAsk, cheapPrice)`): at any price that cleared the new hurdle, the
+next partial listing became the binding constraint and the scroll ceiling stopped being tested at
+all. It now enters at 26M against a 33.41M full-blade cap, so the cap it asserts is the cap that
+binds.
+
+`AlgorithmGuardProbe` is now **90 checks**, including the exact curve (8% at 5M, 10% at 50M, 25% at
+500M, still 25% at 2B) and that `maxCost()` equals the purse at 512M. `./verify.sh` exits 0.
+
+
 ## 1.4.0 — 2026-11-24
 
 ### Craft flips: recipes, ingredient prices and replacement cost

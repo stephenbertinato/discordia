@@ -63,7 +63,6 @@ tab completion. It is still a client-side command: the server never receives it.
 /discordia copy                copy the best flip's command to the clipboard
 /discordia margin 10%          minimum auction/snipe margin
 /discordia minprofit 500k      minimum auction/snipe profit
-/discordia maxcost 100m        maximum item cost (off clears it)
 /discordia status              show the active values and global-source health
 /discordia help                show the compact command list
 /discordia collector           show the automatic in-mod collector
@@ -76,8 +75,9 @@ tab completion. It is still a client-side command: the server never receives it.
 Command responses use a compact colored `[Discordia]` layout: `OK` for accepted changes,
 `USAGE` for malformed input, `!` for warnings, and indented rows for status data. Amounts accept
 `K`, `M`, and `B` suffixes, decimals, and commas. Settings are saved in
-`config/discordia-config.json` and apply to the next scan. `maxcost` is also bounded by the purse;
-book-only auction flips keep their stricter 1M/8% safety floor even if the normal floor is lowered.
+`config/discordia-config.json` and apply to the next scan. The purse is the only cost ceiling —
+there is no separate item cap to set, and a flip is limited only by whether you can afford it.
+Book-only auction flips keep their stricter 1M/8% safety floor even if the normal floor is lowered.
 
 ## How the scanning works
 
@@ -164,8 +164,7 @@ Build and run the standalone option with `collector/build.sh` and `collector/run
 reconnects automatically.
 
 Collector filters are synchronized in both directions. When you change `/discordia margin`,
-`/discordia minprofit`, `/discordia maxcost`, or the purse (budget), the client sends the new
-values over the WebSocket. The collector recomputes from its last fetched book immediately, so
+`/discordia minprofit` or the purse (budget), the client sends the new values over the WebSocket. The collector recomputes from its last fetched book immediately, so
 lowering a filter can reveal additional flips; raising one removes them server-side too. The
 engine's book-only safety floor (8% and 1M) still applies. Ignore entries and the non-BIN
 show/hide switch remain display filters in the client.
@@ -252,8 +251,8 @@ when nobody has bid) and the same item variant signature used elsewhere. The ref
 pool: exact variant first, then the enchant-stripped group, then name/tier — at least 3 comparables.
 That thin floor is deliberate: requiring the usual 8 would have excluded almost every auction item.
 
-Filters: ends in 45 seconds to 30 minutes, bid within `budget × maxBudgetShare`, at least **100k**
-profit after resale tax, at least **10%** margin, confidence ≥ 0.25. Results are sorted by **end
+Filters: ends in 45 seconds to 30 minutes, bid within the purse, at least **100k** profit after
+resale tax, at least **10%** margin scaled up with the bid, confidence ≥ 0.25. Results are sorted by **end
 time**, not profit, because the section is only useful if you can still bid. Each row shows a **max
 bid**: the highest bid that still leaves the minimum profit, so you never have to do the fee math
 while a timer runs.
@@ -552,7 +551,7 @@ stronger evidence than a thin book. Only the listing *count* moves: the unique-c
 qualify are labelled with the pool they were priced from.
 
 **Scrolls are capital, not a discount.** A partial Wither blade's missing scrolls are bazaar-priced
-before it is priced at all, and `buy price + scroll cost` must fit inside the item cap. A 30M
+before it is priced at all, and `buy price + scroll cost` must fit inside the purse. A 30M
 partial Hyperion needing 300M of scrolls is not an affordable flip even though the listing is.
 
 Non-BIN snipes take the same 1.5% reserve on their BIN reference, because a bid is not a purchase
@@ -582,7 +581,7 @@ The console prints the same counts (`FlipConsole`), and `verify.sh` asserts them
 | `BUY_ABOVE_GLOBAL` | the entry is above the weekly-median multiple |
 | `MANIPULATED_ANCHOR` | the next listing is many times the realized price |
 | `RECOMB_CEILING` / `NO_FULL_BLADE` / `SCROLL_UNAVAILABLE` | a component ceiling cannot be met |
-| `OVER_BUDGET` | price plus add-on cost exceeds the item cap |
+| `OVER_BUDGET` | price plus add-on cost exceeds the purse |
 | `MIN_PROFIT` / `MARGIN` / `IMPLAUSIBLE_MARGIN` | the conservative exit does not clear the gate |
 | `LOW_CONFIDENCE` | not enough agreeing evidence for the target |
 | `CAPITAL_TRAP` / `RISK_ADJUSTED` | the hold is too long, or expected value is not positive |
@@ -674,6 +673,20 @@ If you want a faster feed than the public endpoints allow, the legitimate answer
 sources: the SkyCofl candle/active feed already in the fast lane, and the optional collector
 server, which polls once and shares the result with every client connected to it instead of each
 client polling separately.
+
+## Margin scales with price
+
+The percentage gate is not flat. Below `marginScaleFrom` (**10M**) the base `minMarginPct` (8%)
+applies; every `marginScaleStep` (**20M**) of buy price above it adds `marginScalePct` (**1%**), up
+to `maxScaledMarginPct` (**25%**). A 50M flip must clear 10%, a 150M flip 15%, and anything past
+~310M the 25% cap. Big flips lock up big capital, so they have to earn like it.
+
+The old `largeProfitOverride` escape hatch is gone: an absolute profit no longer waves a thin
+percentage through. A 500M item that returns 2% is still a 500M item that returns 2%.
+
+There is no item cap and no budget share. `maxCost()` returns the purse, which the in-game client
+re-reads from the scoreboard every pulse, so a 500M listing is judged on whether you can afford it
+and whether it clears the hurdle — not on an arbitrary fraction of a configured number.
 
 ## Craft flips and replacement cost
 

@@ -29,13 +29,11 @@ public final class CollectorMain {
         config.kat = false;
         config.auctions = true;
         config.snipes = true;
-        config.maxBudgetShare = 1.0d;
         config.budget = amount(env("COLLECTOR_BUDGET", "10b"));
         config.minMarginPct = amount(env("COLLECTOR_MARGIN", "8"));
         config.minSnipeMarginPct = config.minMarginPct;
         config.minProfit = amount(env("COLLECTOR_MIN_PROFIT", "400k"));
         config.minSnipeProfit = amount(env("COLLECTOR_MIN_SNIPE_PROFIT", "100k"));
-        config.maxItemCost = amount(env("COLLECTOR_MAX_COST", "0"));
         config.scanIntervalMs = Math.max(1_000L, (long) amount(env("COLLECTOR_SCAN_INTERVAL_MS", "3000")));
         config.fullRefreshMs = Math.max(60_000L, (long) amount(env("COLLECTOR_FULL_REFRESH_MS", "600000")));
         config.bookOnlyMinMarginPct = Math.max(8d, config.minMarginPct);

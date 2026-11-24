@@ -54,8 +54,6 @@ public final class GlobalGateProbe {
         config.snipes = false;
         config.auctions = true;
         config.budget = 1_000_000_000d;
-        config.maxBudgetShare = 1.0d;
-        config.maxItemCost = 0d;
         config.limit = 10;
 
         MarketSnapshot noBazaar = MarketSnapshot.from(null, List.of());
@@ -89,10 +87,14 @@ public final class GlobalGateProbe {
         check(pumpedFlips.isEmpty(), "A 40M listing against a 25M weekly median escaped the price guard");
         System.out.println("PASS pumped Gyrokinetic-like book: 40M entry rejected against 25M weekly median");
 
+        // A 40M entry must clear a 9.5% price-scaled hurdle now, so the control is given a real gap
+        // (a 50M exit) instead of the 8.26% the old flat 8% gate used to wave through.
         MarketSnapshot control = book("GYROKINETIC_CONTROL", "Gyrokinetic Control", "EPIC",
-                40_000_000d, 45_770_000d);
+                40_000_000d, 50_000_000d);
+        engine.resetRejections();
         List<Flip> controlFlips = engine.compute(control, control, config, sold, null, null).auctions();
-        check(!controlFlips.isEmpty(), "The weekly price guard suppressed a listing supported by a 50M median");
+        check(!controlFlips.isEmpty(), "The weekly price guard suppressed a listing supported by a 50M"
+                + " median; rejections=" + engine.rejections().snapshot());
 
         // Five recent exact-variant sales are enough to allow normal fluctuation around the weekly
         // median, but not enough to make an arbitrary pumped ask look safe.

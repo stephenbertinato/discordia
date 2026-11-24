@@ -47,14 +47,12 @@ All settings are environment variables:
 | `COLLECTOR_MARGIN` | `8` | Server-side minimum margin percent |
 | `COLLECTOR_MIN_PROFIT` | `400k` | Server-side minimum BIN profit |
 | `COLLECTOR_MIN_SNIPE_PROFIT` | `100k` | Server-side minimum non-BIN profit |
-| `COLLECTOR_MAX_COST` | `0` | Absolute item cap; `0` means budget-derived |
 | `COLLECTOR_SCAN_INTERVAL_MS` | `3000` | Heartbeat polling interval |
 | `COLLECTOR_FULL_REFRESH_MS` | `600000` | Full auction-book rebuild interval |
 | `COLLECTOR_STATE_DIR` | `collector-state` | Sales/Cofl cache directory |
 
 Amounts accept `k`, `m`, and `b` suffixes. The initial environment values are the starting broad
-feed. Once a client connects, it sends its current margin, profit, item cap, and budget over the
-WebSocket; the server applies those values and recomputes immediately from the last fetched book.
+feed. Once a client connects, it sends its current margin, profit and budget over the WebSocket; the server applies those values and recomputes immediately from the last fetched book.
 Lowering a filter can therefore reveal more flips, subject to the engine's book-only safety floor
 (8% and 1M). Ignore entries and the non-BIN show/hide switch remain client-side display filters.
 
@@ -116,7 +114,6 @@ Clients may send this control frame after connecting and whenever a local filter
   "minSnipeMarginPct": 8,
   "minProfit": 400000,
   "minSnipeProfit": 100000,
-  "maxItemCost": 0,
   "includeNonBin": false
 }
 ```

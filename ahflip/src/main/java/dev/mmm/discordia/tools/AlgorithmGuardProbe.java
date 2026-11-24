@@ -50,6 +50,7 @@ public final class AlgorithmGuardProbe {
         thinSampleManipulation();
         thickSalesArePricedConservatively();
         plainGlobalGates();
+        marginScaling();
         craftCosts();
         recombobulatorCeiling();
         witherScrollCeiling();
@@ -379,6 +380,34 @@ public final class AlgorithmGuardProbe {
     }
 
     /**
+     * The margin hurdle rises with the buy price, and the purse is the only cost ceiling. A 500M
+     * flip has to earn as if 500M is at stake; there is no absolute-profit escape hatch any more.
+     */
+    private static void marginScaling() {
+        section("price-scaled margin and purse ceiling");
+        FlipConfig config = new FlipConfig();
+        check(Math.abs(config.marginFor(5_000_000d) - config.minMarginPct) < 1e-9,
+                "a cheap flip keeps the base hurdle");
+        check(Math.abs(config.marginFor(50_000_000d) - 10d) < 1e-9,
+                "8% base plus 1% per 20M over 10M is 10% at 50M");
+        check(config.marginFor(500_000_000d) > config.marginFor(50_000_000d),
+                "a 500M flip must clear more than a 50M one");
+        check(Math.abs(config.marginFor(500_000_000d) - config.maxScaledMarginPct) < 1e-9,
+                "the hurdle stops at the configured maximum");
+        check(Math.abs(config.marginFor(2_000_000_000d) - config.maxScaledMarginPct) < 1e-9,
+                "an absurd price cannot demand an absurd margin");
+        check(Math.abs(config.maxCost() - config.budget) < 1e-9,
+                "the only cost ceiling is the purse");
+        config.budget = 512_000_000d;
+        check(Math.abs(config.maxCost() - 512_000_000d) < 1e-9,
+                "a 500M listing must fit a 512M purse with no extra item cap");
+        System.out.println(String.format(
+                "PASS hurdle 5M %.0f%%, 50M %.0f%%, 500M %.0f%%; cap is the purse",
+                config.marginFor(5_000_000d), config.marginFor(50_000_000d),
+                config.marginFor(500_000_000d)));
+    }
+
+    /**
      * The craft-cost lane: a recipe tree priced from live ingredients, modifier costs, and the
      * fail-closed rules that stop an incomplete recipe from becoming an optimistic floor.
      */
@@ -509,18 +538,18 @@ public final class AlgorithmGuardProbe {
         for (int i = 0; i < 3; i++) {
             capped.add("recomb-copy-" + i, "Recomb Ring", "RARE", recombed("RECOMB_RING"), 58_000_000d);
         }
-        capped.add("recomb-cheap", "Recomb Ring", "RARE", plain("RECOMB_RING"), 50_000_000d);
+        capped.add("recomb-cheap", "Recomb Ring", "RARE", plain("RECOMB_RING"), 48_000_000d);
         for (int i = 0; i < 5; i++) {
             capped.add("recomb-dear-" + i, "Recomb Ring", "RARE", plain("RECOMB_RING"), 58_000_000d);
         }
         FlipEngine engine = new FlipEngine();
         List<Flip> flips = engine.compute(capped.build(), capped.build(), config, sold, null, null).auctions();
         check(flips.isEmpty(),
-                "a 50M non-recomb listing against a 58M recombed copy must be refused");
-        System.out.println("PASS non-recomb 50M vs recombed 58M with a 10.2M recomb: refused");
+                "a 48M non-recomb listing against a 58M recombed copy must be refused");
+        System.out.println("PASS non-recomb 48M vs recombed 58M with a 10.2M recomb: refused");
 
         Book control = new Book();
-        control.add("no-recomb-cheap", "Recomb Ring", "RARE", plain("RECOMB_RING"), 50_000_000d);
+        control.add("no-recomb-cheap", "Recomb Ring", "RARE", plain("RECOMB_RING"), 48_000_000d);
         for (int i = 0; i < 5; i++) {
             control.add("no-recomb-dear-" + i, "Recomb Ring", "RARE", plain("RECOMB_RING"), 58_000_000d);
         }
@@ -541,8 +570,8 @@ public final class AlgorithmGuardProbe {
         FlipConfig config = base();
 
         FlipEngine engine = new FlipEngine();
-        List<Flip> flips = engine.compute(bladeBook(2_000_000d).build(), bladeBook(2_000_000d).build(),
-                config, sold, null, null).auctions();
+        List<Flip> flips = engine.compute(bladeBook(2_000_000d, 26_000_000d).build(),
+                bladeBook(2_000_000d, 26_000_000d).build(), config, sold, null, null).auctions();
         check(!flips.isEmpty(), "a partial blade with a deep scroll book must be priced");
         Flip flip = flips.get(0);
         check(flip.targetPrice() <= 33_600_000d,
@@ -560,7 +589,6 @@ public final class AlgorithmGuardProbe {
 
         FlipConfig small = base();
         small.budget = 34_000_000d;
-        small.maxBudgetShare = 1d;
         engine = new FlipEngine();
         flips = engine.compute(bladeBook(2_000_000d).build(), bladeBook(2_000_000d).build(),
                 small, sold, null, null).auctions();
@@ -620,8 +648,6 @@ public final class AlgorithmGuardProbe {
         config.snipes = false;
         config.auctions = true;
         config.budget = 1_000_000_000d;
-        config.maxBudgetShare = 1d;
-        config.maxItemCost = 0d;
         config.limit = 10;
         return config;
     }
@@ -671,11 +697,19 @@ public final class AlgorithmGuardProbe {
      * empty, which is the incomplete-depth case.
      */
     private static Book bladeBook(double scrollAsk) {
+        return bladeBook(scrollAsk, 30_000_000d);
+    }
+
+    /**
+     * @param cheapPrice the partial blade's ask. The scroll-ceiling case must sit low enough that the
+     *                   full-blade cap is the binding constraint, not the next partial listing.
+     */
+    private static Book bladeBook(double scrollAsk, double cheapPrice) {
         Book book = new Book();
         for (int i = 0; i < 5; i++) {
             book.add("blade-full-" + i, "Hyperion", "LEGENDARY", blade(ALL_SCROLLS), 40_000_000d);
         }
-        book.add("blade-partial-cheap", "Hyperion", "LEGENDARY", blade(List.of()), 30_000_000d);
+        book.add("blade-partial-cheap", "Hyperion", "LEGENDARY", blade(List.of()), cheapPrice);
         for (int i = 0; i < 5; i++) {
             book.add("blade-partial-" + i, "Hyperion", "LEGENDARY", blade(List.of()), 35_000_000d);
         }

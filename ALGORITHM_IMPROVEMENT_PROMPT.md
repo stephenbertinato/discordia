@@ -358,7 +358,8 @@ Model every coin that changes hands:
 - NPC sale: NPC price and daily cap; one item per listing assumption unless stack size is known;
 - Kat: pet cost, coin cost, material cost at bazaar, duration; level-1-only rule unless the full
   cost curve is modeled;
-- budget/purse: total available coins, max budget share, absolute item cap;
+- budget/purse: total available coins. This is the only cost ceiling; there is no per-item cap,
+  and the margin hurdle rises with the buy price so a large flip must earn proportionally more;
 - relisting/undercut reserve: set aside a configured buffer for a second listing fee and price
   reduction;
 - capital lock: coins tied up until sale are not free; apply `riskAdjustedProfit`;
@@ -424,7 +425,7 @@ unusual state, raise the evidence bar or suppress, not lower it.
 
 - budget / purse;
 - max budget share per item;
-- absolute max item cost;
+- price-scaled margin hurdle (margin rises with the buy price, capped);
 - minimum profit and margin;
 - maximum sane margin;
 - minimum confidence;
@@ -827,9 +828,7 @@ These are the baseline values in `FlipConfig`; preserve their meaning unless a m
 documented. New safety parameters should default to stricter, not looser.
 
 ```text
-budget                         50,000,000
-maxBudgetShare                 0.25
-maxItemCost                    0
+budget                         50,000,000   (in game: the purse)
 minProfit                      400,000
 minMarginPct                   8
 maxAuctionMarginPct            60
@@ -846,7 +845,10 @@ maxBuyOverGlobalMedianWithSales 1.25
 maxTargetOverGlobalMedian      1.40
 minGlobalSalesForPriceGuard    8
 requireGlobalPriceForPlainFlips true
-largeProfitOverride            1,000,000
+marginScaleFrom                10,000,000
+marginScaleStep                20,000,000
+marginScalePct                 1
+maxScaledMarginPct             25
 bookOnlyFlips                  true
 bookOnlyMinProfit              1,000,000
 bookOnlyMinMarginPct           8

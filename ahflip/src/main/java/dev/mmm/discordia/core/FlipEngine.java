@@ -180,7 +180,7 @@ public final class FlipEngine {
                 continue;
             }
             double margin = profit / bid * 100d;
-            if (margin < config.minSnipeMarginPct) {
+            if (margin < Math.max(config.minSnipeMarginPct, config.marginFor(auction.currentBid()))) {
                 rejections.count(Rejections.Reason.MARGIN);
                 continue;
             }
@@ -590,7 +590,8 @@ public final class FlipEngine {
                         continue;
                     }
                     if (bookProfit < config.bookOnlyMinProfit
-                            || bookMargin < config.bookOnlyMinMarginPct) {
+                            || bookMargin < Math.max(config.bookOnlyMinMarginPct,
+                            config.marginFor(listing.price()))) {
                         rejections.count(Rejections.Reason.MIN_PROFIT);
                         continue;
                     }
@@ -808,7 +809,9 @@ public final class FlipEngine {
                 }
 
                 // --- Fee-inclusive profit at the conservative exit -----------------------------
-                double requiredMargin = Math.max(config.minMarginPct,
+                // The hurdle rises with the price: a 500M flip locks up 500M and must clear more
+                // than the 8% that is enough for a 5M one.
+                double requiredMargin = Math.max(config.marginFor(listing.price()),
                         thickSales ? 0d : config.thinSalesMarginPct);
                 if (!liquidity.known()) {
                     // Unknown liquidity is not safe liquidity: widen the return requirement
@@ -827,7 +830,7 @@ public final class FlipEngine {
                 // A percentage margin is the wrong gate for expensive items. A 380M pet at 2%
                 // is a 5.9M flip, which is better than a 600k flip at 14%; let absolute profit
                 // carry the trade when the percentage is thin but the sales support it.
-                if (margin < requiredMargin && profit < config.largeProfitOverride) {
+                if (margin < requiredMargin) {
                     rejections.count(Rejections.Reason.MARGIN);
                     continue;
                 }
@@ -1018,7 +1021,7 @@ public final class FlipEngine {
                 continue;
             }
             double margin = profit / cost * 100d;
-            if (margin < config.minCraftMarginPct) {
+            if (margin < Math.max(config.minCraftMarginPct, config.marginFor(cost))) {
                 rejections.count(Rejections.Reason.MARGIN);
                 continue;
             }

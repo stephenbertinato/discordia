@@ -2,12 +2,11 @@ package dev.mmm.discordia.core;
 
 /** Filters. Defaults are deliberately conservative: fewer flips, fewer bags. */
 public final class FlipConfig {
-    /** Total coins you are willing to deploy right now. */
+    /**
+     * Total coins you are willing to deploy right now. In game this is the purse, re-read every
+     * pulse; in the console it is {@code --budget}. It is the only cost ceiling there is.
+     */
     public double budget = 50_000_000d;
-    /** A single flip may never exceed this share of the budget. */
-    public double maxBudgetShare = 0.25d;
-    /** Absolute cap on one item; 0 means no extra cap beyond the purse share. */
-    public double maxItemCost = 0d;
     /** Absolute minimum profit per flip, after tax. */
     public double minProfit = 400_000d;
     /** Auction: minimum return on the buy price. */
@@ -61,8 +60,16 @@ public final class FlipConfig {
     public int minGlobalSalesForTrustedExit = 50;
     /** Plain items: do not show them until Cofl provides enough weekly sales to price them. */
     public boolean requireGlobalPriceForPlainFlips = true;
-    /** Percentage margin gates are bypassed when the absolute profit is at least this large. */
-    public double largeProfitOverride = 1_000_000d;
+    /**
+     * The margin hurdle grows with the buy price, because a big flip locks up big capital. Below
+     * {@link #marginScaleFrom} the plain {@link #minMarginPct} applies; every
+     * {@link #marginScaleStep} coins above it adds {@link #marginScalePct}, up to
+     * {@link #maxScaledMarginPct}. A 500M flip has to earn as if 500M is at stake, not 8%.
+     */
+    public double marginScaleFrom = 10_000_000d;
+    public double marginScaleStep = 20_000_000d;
+    public double marginScalePct = 1d;
+    public double maxScaledMarginPct = 25d;
     /** Keep strong book gaps even when no same-variant sale exists; they are labeled book-only. */
     public boolean bookOnlyFlips = true;
     public double bookOnlyMinProfit = 1_000_000d;
@@ -162,17 +169,23 @@ public final class FlipConfig {
     /** Safety net: force a full auction dump this often even if the tick looks unchanged. */
     public long fullRefreshMs = 600_000L;
 
-    /** The lower of the purse share and the user's absolute item cap. */
+    /** The purse, and nothing else: affordability is the only ceiling on a good flip. */
     public double maxCost() {
-        double purseCap = budget * maxBudgetShare;
-        return maxItemCost > 0d ? Math.min(purseCap, maxItemCost) : purseCap;
+        return budget;
+    }
+
+    /** The margin a flip must clear at this buy price; see {@link #marginScaleFrom}. */
+    public double marginFor(double price) {
+        double hurdle = minMarginPct;
+        if (price > marginScaleFrom && marginScaleStep > 0d) {
+            hurdle += (price - marginScaleFrom) / marginScaleStep * marginScalePct;
+        }
+        return Math.max(minMarginPct, Math.min(hurdle, maxScaledMarginPct));
     }
 
     public FlipConfig copy() {
         FlipConfig c = new FlipConfig();
         c.budget = budget;
-        c.maxBudgetShare = maxBudgetShare;
-        c.maxItemCost = maxItemCost;
         c.minProfit = minProfit;
         c.minMarginPct = minMarginPct;
         c.minBazaarMarginPct = minBazaarMarginPct;
@@ -204,7 +217,10 @@ public final class FlipConfig {
         c.minGlobalSalesForPriceGuard = minGlobalSalesForPriceGuard;
         c.minGlobalSalesForTrustedExit = minGlobalSalesForTrustedExit;
         c.requireGlobalPriceForPlainFlips = requireGlobalPriceForPlainFlips;
-        c.largeProfitOverride = largeProfitOverride;
+        c.marginScaleFrom = marginScaleFrom;
+        c.marginScaleStep = marginScaleStep;
+        c.marginScalePct = marginScalePct;
+        c.maxScaledMarginPct = maxScaledMarginPct;
         c.bookOnlyFlips = bookOnlyFlips;
         c.bookOnlyMinProfit = bookOnlyMinProfit;
         c.bookOnlyMinMarginPct = bookOnlyMinMarginPct;

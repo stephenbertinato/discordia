@@ -84,8 +84,7 @@ public final class DiscordiaClient implements ClientModInitializer {
         // in the standalone console, but must never leak into auction chat or commands.
         CONFIG.bazaar = false;
         CONFIG.deterministic = false;
-        // The requested budget is the purse itself, not a separate configured number.
-        CONFIG.maxBudgetShare = 1.0d;
+        // The requested budget is the purse itself: affordability is the only ceiling.
 
         Path configDir = FabricLoader.getInstance().getConfigDir();
         ignoredPath = configDir.resolve("discordia-ignored.txt");
@@ -150,7 +149,6 @@ public final class DiscordiaClient implements ClientModInitializer {
             case "settings", "config" -> client.status();
             case "margin", "minmargin", "min-margin" -> client.setMargin(joinArguments(parts, 2));
             case "minprofit", "min-profit", "profit" -> client.setMinProfit(joinArguments(parts, 2));
-            case "maxcost", "max-cost", "max" -> client.setMaxCost(joinArguments(parts, 2));
             case "ignore" -> client.ignore(joinArguments(parts, 2));
             case "unignore" -> client.unignore(joinArguments(parts, 2));
             case "globalfault" -> client.globalFault(joinArguments(parts, 2));
@@ -197,9 +195,6 @@ public final class DiscordiaClient implements ClientModInitializer {
                         + StringArgumentType.getString(context, "percent")))));
         root.then(literal("minprofit")
                 .then(word("amount").executes(context -> executeClient("discordia minprofit "
-                        + StringArgumentType.getString(context, "amount")))));
-        root.then(literal("maxcost")
-                .then(word("amount").executes(context -> executeClient("discordia maxcost "
                         + StringArgumentType.getString(context, "amount")))));
         root.then(literal("ignore")
                 .then(greedy("item").executes(context -> executeClient("discordia ignore "
@@ -284,7 +279,6 @@ public final class DiscordiaClient implements ClientModInitializer {
             boolean changed = seen != purse;
             purse = seen;
             CONFIG.budget = seen;
-            CONFIG.maxBudgetShare = 1.0d;
             if (changed) {
                 sendCollectorFilters();
             }
@@ -393,9 +387,12 @@ public final class DiscordiaClient implements ClientModInitializer {
         statusRow(minecraft, "feed", MARKET.status()
                 + (age < 0 ? "  |  tick waiting" : "  |  tick " + age + "s"));
         statusRow(minecraft, "flips", bin + " BIN" + (includeNonBin ? "  |  " + snipes + " non-BIN" : ""));
-        statusRow(minecraft, "filters", "margin >= " + trimNumber(CONFIG.minMarginPct)
-                + "%  |  profit >= " + coins(CONFIG.minProfit)
-                + "  |  cap " + (CONFIG.maxItemCost > 0d ? coins(CONFIG.maxItemCost) : "purse"));
+        statusRow(minecraft, "filters", "margin >= " + trimNumber(CONFIG.minMarginPct) + "% ("
+                + trimNumber(CONFIG.marginScalePct) + "%/" + coins(CONFIG.marginScaleStep)
+                + " above " + coins(CONFIG.marginScaleFrom) + ", max "
+                + trimNumber(CONFIG.maxScaledMarginPct) + "%)"
+                + "  |  profit >= " + coins(CONFIG.minProfit)
+                + "  |  purse cap " + (CONFIG.budget > 0d ? coins(CONFIG.budget) : "waiting"));
         statusRow(minecraft, "data", MARKET.catalogItems() + " items  |  "
                 + MARKET.trackedItems() + " tracked  |  " + MARKET.saleSamples() + " sales");
         statusRow(minecraft, "global", MARKET.globalCached() + " cached  |  "
@@ -443,9 +440,12 @@ public final class DiscordiaClient implements ClientModInitializer {
         feed.append(tickAge < 0 ? "  |  tick waiting" : "  |  tick " + tickAge + "s");
         statusRow(minecraft, "feed", feed.toString());
         statusRow(minecraft, "flips", bin + " BIN" + (includeNonBin ? "  |  " + snipes + " non-BIN" : ""));
-        statusRow(minecraft, "filters", "margin >= " + trimNumber(CONFIG.minMarginPct)
-                + "%  |  profit >= " + coins(CONFIG.minProfit)
-                + "  |  cap " + (CONFIG.maxItemCost > 0d ? coins(CONFIG.maxItemCost) : "purse"));
+        statusRow(minecraft, "filters", "margin >= " + trimNumber(CONFIG.minMarginPct) + "% ("
+                + trimNumber(CONFIG.marginScalePct) + "%/" + coins(CONFIG.marginScaleStep)
+                + " above " + coins(CONFIG.marginScaleFrom) + ", max "
+                + trimNumber(CONFIG.maxScaledMarginPct) + "%)"
+                + "  |  profit >= " + coins(CONFIG.minProfit)
+                + "  |  purse cap " + (CONFIG.budget > 0d ? coins(CONFIG.budget) : "waiting"));
         statusRow(minecraft, "source", displayCollectorUrl());
         statusRow(minecraft, "pending", sourcePending() + " unverified flips");
         sendActions(minecraft);
@@ -483,28 +483,6 @@ public final class DiscordiaClient implements ClientModInitializer {
         sendCollectorFilters();
         refreshDisplay(minecraft);
         success(minecraft, "Minimum profit: " + coins(value) + ".");
-    }
-
-    private void setMaxCost(String raw) {
-        String text = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
-        Double value;
-        if (text.equals("off") || text.equals("none") || text.equals("unlimited")) {
-            value = 0d;
-        } else {
-            value = parseCoins(text);
-        }
-        Minecraft minecraft = Minecraft.getInstance();
-        if (value == null) {
-            usage(minecraft, "/discordia maxcost <50k|100m|2b|off>");
-            return;
-        }
-        CONFIG.maxItemCost = value;
-        saveSettings();
-        sendCollectorFilters();
-        refreshDisplay(minecraft);
-        success(minecraft, value > 0d
-                ? "Item cap: " + coins(value) + " (purse still applies)."
-                : "Item cap removed - using purse.");
     }
 
     /** Parses 10 or 10% (percent, not coins). */
@@ -650,12 +628,6 @@ public final class DiscordiaClient implements ClientModInitializer {
                     CONFIG.minSnipeProfit = value;
                 }
             }
-            if (root.has("maxItemCost")) {
-                double value = root.get("maxItemCost").getAsDouble();
-                if (Double.isFinite(value) && value >= 0d) {
-                    CONFIG.maxItemCost = value;
-                }
-            }
             if (root.has("showNonBin")) {
                 includeNonBin = root.get("showNonBin").getAsBoolean();
             }
@@ -688,7 +660,6 @@ public final class DiscordiaClient implements ClientModInitializer {
             JsonObject root = new JsonObject();
             root.addProperty("minMarginPct", CONFIG.minMarginPct);
             root.addProperty("minProfit", CONFIG.minProfit);
-            root.addProperty("maxItemCost", CONFIG.maxItemCost);
             root.addProperty("showNonBin", includeNonBin);
             if (!embeddedCollector && !collectorUrl.isBlank()) {
                 root.addProperty("collectorUrl", collectorUrl);
@@ -1070,13 +1041,11 @@ public final class DiscordiaClient implements ClientModInitializer {
             config.kat = false;
             config.auctions = true;
             config.snipes = true;
-            config.maxBudgetShare = 1.0d;
             config.budget = 10_000_000_000d;
             config.minMarginPct = 0d;
             config.minSnipeMarginPct = 0d;
             config.minProfit = 0d;
             config.minSnipeProfit = 0d;
-            config.maxItemCost = 0d;
             config.scanIntervalMs = 3_000L;
             config.fullRefreshMs = 600_000L;
             config.bookOnlyMinMarginPct = 8d;
@@ -1141,7 +1110,6 @@ public final class DiscordiaClient implements ClientModInitializer {
         filters.addProperty("minSnipeMarginPct", CONFIG.minSnipeMarginPct);
         filters.addProperty("minProfit", CONFIG.minProfit);
         filters.addProperty("minSnipeProfit", CONFIG.minSnipeProfit);
-        filters.addProperty("maxItemCost", CONFIG.maxItemCost);
         filters.addProperty("includeNonBin", includeNonBin);
         return filters;
     }
@@ -1271,7 +1239,6 @@ public final class DiscordiaClient implements ClientModInitializer {
         helpRow(minecraft, "/discordia copy", "copy the best command");
         helpRow(minecraft, "/discordia margin <pct>", "minimum margin");
         helpRow(minecraft, "/discordia minprofit <amount>", "minimum profit");
-        helpRow(minecraft, "/discordia maxcost <amount|off>", "item cost cap");
         helpRow(minecraft, "/discordia collector", "embedded collector status");
         helpRow(minecraft, "/discordia collector <url> [token]", "optional external collector");
         helpRow(minecraft, "/discordia ignore <item>", "hide an item");

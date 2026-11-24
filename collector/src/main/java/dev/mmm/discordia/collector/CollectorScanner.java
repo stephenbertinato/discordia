@@ -219,7 +219,6 @@ public final class CollectorScanner {
             double minSnipeMargin = number(filters, "minSnipeMarginPct", config.minSnipeMarginPct);
             double minProfit = number(filters, "minProfit", config.minProfit);
             double minSnipeProfit = number(filters, "minSnipeProfit", config.minSnipeProfit);
-            double maxCost = number(filters, "maxItemCost", config.maxItemCost);
             double budget = number(filters, "budget", config.budget);
 
             if (minMargin >= 0d && minMargin <= 100d) {
@@ -234,13 +233,9 @@ public final class CollectorScanner {
             if (minSnipeProfit >= 0d) {
                 config.minSnipeProfit = minSnipeProfit;
             }
-            if (maxCost >= 0d) {
-                config.maxItemCost = maxCost;
-            }
             if (budget > 0d) {
                 config.budget = budget;
             }
-            config.maxBudgetShare = 1.0d;
             config.bookOnlyMinMarginPct = Math.max(8d, config.minMarginPct);
             config.bookOnlyMinProfit = Math.max(1_000_000d, config.minProfit);
         }
