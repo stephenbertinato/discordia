@@ -520,8 +520,14 @@ Recombobulator ceiling, while already-recombed blades are priced normally.
 recomb or held pet item) must have a trusted Cofl weekly summary before a BIN flip is shown. It
 needs at least **8** weekly sales; the asking price may not exceed **1.15×** the weekly median on
 thin local evidence, or **1.25×** when at least **5** recent exact-variant sales support normal
-price fluctuation. The projected resale target is capped at **1.40×** the median. This still stops
-a 40M Gyrokinetic Wand with a roughly 25M weekly median and no thick local support. The guard
+price fluctuation. The projected resale target is capped at **1.15×** the median. This still stops
+a 40M Gyrokinetic Wand with a roughly 25M weekly median and no thick local support.
+
+The cap was 1.40× until PORTALIZER on 2026-11-24: 53 weekly sales at a 6.2M median, then a pump
+put eleven sales above 11.6M and lifted every listing to ~8M. A 7M ask was announced as a flip
+because the exit was allowed to reach 8.7M — 40% over what the item had ever sold for. The weekly
+median is what the item actually sells for; 15% is drift, and anything past that is the pump
+talking. The guard
 applies to BIN flips universally for plain items and to non-BIN snipes whenever a weekly summary
 is available. It can hide a plain BIN while Cofl is still loading; that is safer than turning an
 unverified pumped book into a purchase recommendation.

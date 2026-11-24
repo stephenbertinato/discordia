@@ -842,7 +842,7 @@ thinSalesMarginPct             5
 maxThinAnchorOverSales         1.0
 maxBuyOverGlobalMedian         1.15
 maxBuyOverGlobalMedianWithSales 1.25
-maxTargetOverGlobalMedian      1.40
+maxTargetOverGlobalMedian      1.15
 minGlobalSalesForPriceGuard    8
 requireGlobalPriceForPlainFlips true
 minAbsoluteMarginProfit       20,000,000   (enough on its own above ~250M)

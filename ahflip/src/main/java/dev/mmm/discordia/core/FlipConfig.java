@@ -48,7 +48,13 @@ public final class FlipConfig {
     /** Plain items with several recent exact-variant sales get a little more room for fluctuation. */
     public double maxBuyOverGlobalMedianWithSales = 1.25d;
     /** Plain items: never project a resale target above this multiple of the weekly median. */
-    public double maxTargetOverGlobalMedian = 1.40d;
+    /**
+     * A plain item's exit may not sit more than this far above its weekly median. It was 1.40, and
+     * that was enough for a one-day PORTALIZER pump (53 sales, 6.2M median, eleven sales above
+     * 11.6M) to turn every listing into an ~8M "comparable" and make a 7M ask look profitable.
+     * The weekly median is what the item actually sells for; 15% is drift, more than that is a pump.
+     */
+    public double maxTargetOverGlobalMedian = 1.15d;
     /** Weekly sales required before the market-wide median is trusted. */
     public int minGlobalSalesForPriceGuard = 8;
     /**

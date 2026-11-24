@@ -1,5 +1,37 @@
 # Changelog
 
+## 1.6.1 — 2026-11-24
+
+### A pumped book can no longer invent an exit 40% above the weekly median
+
+PORTALIZER, 24 November: 53 weekly sales with a **6.2M median**, then a pump put eleven sales above
+**11.6M** and lifted every listing to about **8M**. The scanner announced a **7M** ask as a flip,
+because the plain-item target was capped at `1.40 ×` the weekly median — 8.68M — and the pumped
+sales satisfied the "thick local evidence" bar, so the exit was booked at the cap.
+
+`maxTargetOverGlobalMedian` is now **1.15**. On a 6.2M weekly median that caps the exit at 7.13M:
+buying at 7M leaves nothing after the 1.5% reserve and AH fees, so the listing is refused with
+`MIN_PROFIT` instead of being announced. A 5M ask on the same pumped book is still a flip.
+
+The entry-side guard is unchanged (1.15× on thin evidence, 1.25× with five recent sales); it no
+longer matters much, because an exit capped at +15% means paying more than the median cannot show
+a profit. Both BIN and non-BIN snipes use the same cap.
+
+Regression: `AlgorithmGuardProbe.pumpAboveWeeklyMedian()` seeds the real PORTALIZER numbers — 53
+weekly sales at 6.2M plus six pumped local sales at 11.9M-14M, a 7M listing and seven 8M
+comparables — and asserts the 7M is refused while a 5M control still prices.
+
+Two older fixtures had encoded the behaviour this closes, so they now assert the opposite:
+
+- Titanium bought **11% over** its 8M median and asked **36% over** it; it now buys at 7M into an
+  8.6M book, which is a real discount.
+- the "thick local evidence" case used five 40M sales to justify an exit **52% over** a 210-sale
+  25M median. Those five sales are 2% of the week — a spike, not a market — so the entry is now
+  refused, with a 22M control proving a discount under the median still prices.
+
+96 checks, `./verify.sh` exits 0.
+
+
 ## 1.6.0 — 2026-11-24
 
 ### Hold a key to open the best flip

@@ -50,6 +50,7 @@ public final class AlgorithmGuardProbe {
         thinSampleManipulation();
         thickSalesArePricedConservatively();
         plainGlobalGates();
+        pumpAboveWeeklyMedian();
         marginScaling();
         craftCosts();
         recombobulatorCeiling();
@@ -377,6 +378,50 @@ public final class AlgorithmGuardProbe {
                 .auctions();
         check(flips.isEmpty(), "a six-sale summary must never license an unbounded margin");
         System.out.println("PASS mislisted copy with 6 weekly sales: still refused");
+    }
+
+    /**
+     * PORTALIZER, 2026-11-24: 53 weekly sales at a 6.2M median, then a pump put 11 sales above
+     * 11.6M and lifted every listing to ~8M. A 7M ask is not a flip because the pumped book says
+     * 8M; the weekly median is what the item actually sells for.
+     */
+    private static void pumpAboveWeeklyMedian() {
+        section("pumped book vs weekly median");
+        SoldStats sold = new SoldStats();
+        sold.setGlobal("PORTALIZER",
+                new SoldStats.Stats(53, 6_200_000d, 6_200_000d, 7.6d, false, false));
+        // Today's pump: eleven sales above 11.6M, which is what made the exit look real.
+        double[] pump = {11_900_000d, 12_100_000d, 12_500_000d, 13_000_000d, 13_600_000d, 14_000_000d};
+        for (int i = 0; i < pump.length; i++) {
+            seedSale(sold, "PORTALIZER", pump[i], "portal-pump-" + i);
+        }
+
+        Book pumped = new Book();
+        pumped.add("portal-cheap", "Portalizer", "RARE", plain("PORTALIZER"), 7_000_000d);
+        for (int i = 0; i < 7; i++) {
+            pumped.add("portal-dear-" + i, "Portalizer", "RARE", plain("PORTALIZER"), 8_000_000d);
+        }
+        FlipEngine engine = new FlipEngine();
+        engine.resetRejections();
+        List<Flip> flips = engine.compute(pumped.build(), pumped.build(), base(), sold, null, null)
+                .auctions();
+        check(flips.isEmpty(), "a 7M ask against a 6.2M weekly median must not be a flip; rejections="
+                + engine.rejections().snapshot());
+        System.out.println("PASS 7M Portalizer vs a 6.2M weekly median: refused "
+                + engine.rejections().snapshot());
+
+        Book control = new Book();
+        control.add("portal-control", "Portalizer", "RARE", plain("PORTALIZER"), 5_000_000d);
+        for (int i = 0; i < 7; i++) {
+            control.add("portal-control-dear-" + i, "Portalizer", "RARE", plain("PORTALIZER"),
+                    8_000_000d);
+        }
+        engine = new FlipEngine();
+        engine.resetRejections();
+        flips = engine.compute(control.build(), control.build(), base(), sold, null, null).auctions();
+        check(!flips.isEmpty(), "a 5M ask against a 6.2M weekly median is still a flip; rejections="
+                + engine.rejections().snapshot());
+        System.out.println("PASS 5M Portalizer with the same pumped book: still a flip");
     }
 
     /**

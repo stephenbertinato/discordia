@@ -60,7 +60,11 @@ public final class GlobalGateProbe {
         check(noBazaar.bazaar.isEmpty(), "missing bazaar data was not represented as empty");
         System.out.println("PASS missing bazaar data: auction parsing remains available");
 
-        MarketSnapshot titaniumBook = book("TITANIUM_RING", "Titanium Ring", "RARE");
+        // Buy below the 8M weekly median and ask 8.6M: a real discount into a real market. The old
+        // 8.9M -> 10.89M book bought 11% over the median and asked 36% over it, which is the pump
+        // pattern the target cap now refuses.
+        MarketSnapshot titaniumBook = book("TITANIUM_RING", "Titanium Ring", "RARE",
+                7_000_000d, 8_600_000d);
         MarketSnapshot zeroBook = book("SYNTHETIC_ZERO_RING", "Synthetic Zero Ring", "RARE");
         FlipEngine engine = new FlipEngine();
 
@@ -96,14 +100,24 @@ public final class GlobalGateProbe {
         check(!controlFlips.isEmpty(), "The weekly price guard suppressed a listing supported by a 50M"
                 + " median; rejections=" + engine.rejections().snapshot());
 
-        // Five recent exact-variant sales are enough to allow normal fluctuation around the weekly
-        // median, but not enough to make an arbitrary pumped ask look safe.
+        // Five recent 40M sales are 2% of a 210-sale week at a 25M median. They cannot reprice the
+        // exit 52% above the weekly median: that is the PORTALIZER pump, one day of sales lifting
+        // every listing until the entry looks cheap.
         MarketSnapshot thick = book("THICK_FLUCTUATION_RING", "Thick Fluctuation Ring", "RARE",
                 30_000_000d, 38_000_000d);
         List<Flip> thickFlips = engine.compute(thick, thick, config, sold, null, null).auctions();
-        check(!thickFlips.isEmpty(),
-                "A thick sale sample at 30M against a 25M weekly median was still rejected by 1.15x");
-        System.out.println("PASS thick local evidence: 30M entry allowed against 25M weekly median (1.25x cap)");
+        check(thickFlips.isEmpty(),
+                "five recent 40M sales must not lift a 30M entry against a 25M weekly median");
+        System.out.println("PASS thick local spike: 30M entry refused against a 210-sale 25M median");
+
+        // The same evidence still counts when it agrees with the weekly market.
+        MarketSnapshot consistent = book("THICK_FLUCTUATION_RING", "Thick Fluctuation Ring", "RARE",
+                22_000_000d, 26_000_000d);
+        List<Flip> consistentFlips = engine.compute(consistent, consistent, config, sold, null, null)
+                .auctions();
+        check(!consistentFlips.isEmpty(),
+                "a 22M entry under a 25M weekly median must still be priced");
+        System.out.println("PASS thick local evidence under the median: 22M entry priced");
 
         System.out.printf("PASS global Titanium: %s -> %s (+%s, %.0f%%)%n",
                 coins(titaniumFlip.buyPrice()), coins(titaniumFlip.targetPrice()),
