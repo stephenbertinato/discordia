@@ -22,17 +22,21 @@ public final class CoflRateLimiter {
     private static final int TOTAL_PER_MINUTE = 100;
     private static final int TOTAL_PER_TEN_SECONDS = 30;
 
-    /** Two-second feed polling uses five slots per ten seconds; this reserves that much. */
-    private static final int FEED_PER_MINUTE = 30;
-    private static final int FEED_PER_TEN_SECONDS = 5;
+    /**
+     * The feed now polls about once a second instead of once every two, so it gets the larger
+     * share. Detection latency is what loses a flip; a candidate that is never seen cannot be
+     * resolved quickly, and the detail queue is empty most of the time.
+     */
+    private static final int FEED_PER_MINUTE = 60;
+    private static final int FEED_PER_TEN_SECONDS = 10;
 
-    /** Detail lookups get the largest fast-lane share while leaving feed slots untouched. */
-    private static final int DETAIL_PER_MINUTE = 50;
-    private static final int DETAIL_PER_TEN_SECONDS = 18;
+    /** Detail lookups only serve real undercuts now, so 25/min covers the demand with headroom. */
+    private static final int DETAIL_PER_MINUTE = 25;
+    private static final int DETAIL_PER_TEN_SECONDS = 5;
 
-    /** Background sale lookups are deliberately last: 20 per minute. */
-    private static final int GLOBAL_PER_MINUTE = 20;
-    private static final int GLOBAL_PER_TEN_SECONDS = 7;
+    /** Background sale lookups keep a working share: 15 per minute. */
+    private static final int GLOBAL_PER_MINUTE = 15;
+    private static final int GLOBAL_PER_TEN_SECONDS = 5;
 
     private static final long ONE_MINUTE_MS = 60_000L;
     private static final long TEN_SECONDS_MS = 10_000L;

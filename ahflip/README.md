@@ -1,940 +1,942 @@
-# Discordia
-
-A client-side Hypixel SkyBlock flip finder. It reads public market data, applies conservative
-filters, and prints live candidates to your own chat.
-
-The in-game client is **auction-house only**. Bazaar order flips and conversion income are not
-generated or sent to chat; the bazaar feed is used only when available to value AH items. The
-standalone console retains those extra sections for diagnostics.
-
-**It never buys, bids, clicks, or confirms anything.** Clicking a chat notification or running
-`/discordia open` opens one auction (`/viewauction <uuid>`); you still decide and click Buy. The mod
-does not poll or track keyboard input; all actions are chat commands or clickable chat lines.
-
-## Live chat notifications
-
-Discordia starts with live notifications enabled. Bare `/discordia` toggles them off or back on.
-While on, **every new qualifying BIN flip** is announced as soon as it enters the feed, as a
-clickable chat line with
-the buy price, target sale price, realized median, estimated profit, and expected time to sell.
-Only BIN auctions are shown by default. Non-BIN ending auctions stay hidden until
-`/discordia toggle nonbin`; when enabled, `/discordia list` groups them separately and notifications
-are tagged `[BIN]` or `[non-BIN]`. Clicking a line runs `/viewauction <uuid>`; it does not buy anything
-for you. A red `[ignore]` button at the end of the same line hides that item name from future
-notifications. Ignore entries persist in `config/discordia-ignored.txt`; `/discordia unignore <item>`
-restores one.
-
-On a fresh install the mod starts the collector feed automatically inside the game; the scanner
-subsection below describes that same heartbeat/page-0/full-book loop either way. The scanner uses up
-to 100 results, accepts a six-listing book, and keeps strong gaps even when there is no same-variant
-sale. Those unverified entries are marked `[book]` and use the next real
-listing as the target; their median is `-`. They still require two supporting listings, at least
-1M profit, an 8% margin, 35% confidence, at least 1 recent sale/day for the item, and an exact or
-same-variant group pool (never the mixed base-item pool). Those entries are suppressed when the
-market-wide 7-day summary has zero sales. If the global summary is unavailable but local rows
-exist, the observed local rows are used; with no local rows the item stays pending/unavailable
-rather than being treated as proof that it never sells. Plain items additionally require a
-trusted weekly median before they are shown (see the plain-item guard below), because a thin
-or pending summary is exactly where a pumped active ask can look like the resale price.
-At first scan the public SkyBlock item resource is loaded from
-`/resources/skyblock/items` (about 5,700 item ids), with the v2 route as a fallback; the live check
-showed both routes returning the same 5,691 ids. Every live auction, bazaar, sale, and global-summary
-id is registered too. An item with no sale rows resolves to an explicit `count=0, perDay=0` record
-instead of `null`; the status line reports the catalog, known-id, and global-cache counts. If the
-resource endpoint is unavailable, live ids are still registered and the catalog count stays at zero
-until a later retry.
-An existing `ahflip-sales.json` file is copied to its `discordia-sales.json` name on first launch, so
-the old 7-day history is retained.
-
-The budget is read from the Hypixel sidebar `Purse:` line (commas and `k`/`m`/`b` suffixes are
-supported) and is updated as the purse changes. There is no separate budget setting in the mod.
-
-### Chat commands
-
-The command tree is registered locally, so `/discordia` and its subcommands appear in Minecraft's
-tab completion. It is still a client-side command: the server never receives it.
-
-```text
-/discordia                     toggle live notifications
-/discordia toggle              toggle live notifications
-/discordia toggle nonbin       show/hide non-BIN ending auctions
-/discordia list                print the current BIN flips
-/discordia open                open the best flip (/viewauction <uuid>)
-/discordia copy                copy the best flip's command to the clipboard
-/discordia margin 10%          minimum auction/snipe margin
-/discordia minprofit 500k      minimum auction/snipe profit
-/discordia status              show the active values and global-source health
-/discordia help                show the compact command list
-/discordia collector           show the automatic in-mod collector
-/discordia collector <url> [token]  optional external collector
-/discordia collector off       return to the local scanner
-/discordia globalfault 429     developer-only in-game Cofl failure injection
-/discordia globalfault off     return to the real Cofl source
-```
-
-Command responses use a compact colored `[Discordia]` layout: `OK` for accepted changes,
-`USAGE` for malformed input, `!` for warnings, and indented rows for status data. Amounts accept
-`K`, `M`, and `B` suffixes, decimals, and commas. Settings are saved in
-`config/discordia-config.json` and apply to the next scan. The purse is the only cost ceiling —
-there is no separate item cap to set, and a flip is limited only by whether you can afford it.
-Book-only auction flips keep their stricter 1M/8% safety floor even if the normal floor is lowered.
-
-## Keybind: hold to open the best flip
-
-Options → Controls → **Discordia** → *Open best flip (hold)*. It is bound to nothing by default, so
-it can never collide with a vanilla key.
-
-While it is held and no screen is open, the client runs `/viewauction <uuid>` for the
-highest-profit flip in the current list. A different best flip opens after 500ms; the same one
-repeats no faster than every 2s. Holding it with an auction window open does nothing at all —
-re-opening the window under your cursor is how a misclick happens.
-
-Like everything else here it only sends a command you could have typed: it never buys, bids or
-clicks.
-
-## How the scanning works
-
-The auction dump is expensive and the market only ticks about once a minute. Measured:
-
-| Endpoint | Size | Role |
-|---|---|---|
-| `/auctions?page=N` | **~2.4 MB per page**, 42 pages | the book |
-| `/auctions_ended` | **~68 KB** | heartbeat + realized sales |
-
-**Reading `/discordia status`:** `scan` is the last collector poll/push, while `tick` is the last
-Hypixel market update. The scanner polls every 3–5 seconds, but Hypixel publishes a new auction
-tick only about once a minute, so a healthy feed normally shows a small `scan` age and a larger
-`tick` age. A large `scan` age means the poll loop/connection is stalled; a large `tick` age alone
-is normal and does not mean the scanner stopped.
-
-`auctions_ended` carries the same `lastUpdated` as the auction dump (verified: both reported
-`1795507192072`), so it is a cheap "has the market moved?" probe. Page 0 is sorted newest-first
-(verified: page 0 start times run up to the current tick, page 41 is 20 minutes older), so every
-newly listed auction shows up there.
-
-So the loop is:
-
-1. Poll the 68 KB heartbeat every **5 s** (the embedded collector uses **3 s**). Also ingest its sales into the rolling stats.
-2. When `lastUpdated` moves, fetch **page 0 only** (~2.4 MB) and score those ~1,000 newest listings
-   against the cached book.
-3. In parallel, poll SkyCofl's fast newest-auction feed and score qualifying new BINs immediately.
-4. Rebuild the full book (~100 MB) only every **10 min**, to keep reference prices honest.
-
-That is roughly **800 MB/hour** at the defaults instead of ~6 GB/hour for a full dump every tick.
-It is the price of live data on a client; raise `fullRefreshMs` to trade freshness for bandwidth.
-A hosted collector shared by many players (the Cofl model) is the only way to make this cheap.
-
-### Fast auction lane
-
-The normal loop is limited by Hypixel's market tick, so it cannot see a listing until Hypixel
-publishes the next auction snapshot. While that is running, Discordia also watches
-[SkyCofl's newest-active-auction feed](https://sky.coflnet.com/data) every **2 seconds**. The feed
-is normally CDN-cached for five seconds, so the fast lane uses a cache-buster to read the current
-in-memory snapshot instead. SkyCofl shows new auctions within a few seconds, and its auction-detail
-route carries the NBT and enchantment data needed to rebuild the same variant keys as the normal
-book.
-
-For a new BIN, the fast lane only fetches details when the item's tag is already in the cached
-book and the ask is within **1.35×** of the cheapest cached listing for that tag. Every eligible
-auction is put in a priority backlog immediately; a separate drain thread works through it
-continuously instead of discarding everything beyond a per-poll cap. Failed detail lookups stay in
-the backlog and retry, so a burst cannot strand a good flip when the feed rotates.
-
-The feed polls, auction-detail requests, and global-sales lookups share one Cofl rate budget
-(100/minute and 30/10 seconds, with global lookups capped below the fast lane's share). It then
-runs the same `FlipEngine`, price guards, global-sale checks, and filters as the normal scan. Fast
-results are merged for up to two minutes and normal page-0 results always win by auction UUID. If
-SkyCofl is unavailable, slow, rate-limited, or has an incomplete detail row, the normal scan
-continues and the fast lane retries instead of silently dropping the candidate.
-
-This lane uses SkyCofl's public API under its normal rate limits; it needs no account or API key.
-It is best-effort, not a guarantee that every new auction is seen before the next Hypixel tick. The
-normal page-0 scan remains the source of truth and will fill in anything the fast lane missed.
-
-### Collector mode
-
-The mod starts a collector **inside the game process** on a fresh install. It binds an ephemeral
-loopback port, starts the same heartbeat/page-0/full-book loop, computes flips server-side, and
-connects the client over WebSocket. There is no token, separate process, or setup step. The feed is
-local-only and the port is random, so other machines cannot connect to it.
-
-```text
-/discordia collector           show the automatic in-mod collector
-/discordia collector off       stop the embedded collector and resume the local scanner
-```
-
-The embedded collector is still useful for users who want a separate feed later, or for a shared
-private collector. The repository also includes a standalone collector under `../collector/`; it
-adds a token and a fixed port for that advanced case. The in-game client consumes the same protocol:
-
-```text
-/discordia collector ws://127.0.0.1:8787/ws <token>
-/discordia collector off
-```
-
-Build and run the standalone option with `collector/build.sh` and `collector/run.sh`; see
-`collector/README.md`. The client stops its local scanner while any collector is active and
-reconnects automatically.
-
-Collector filters are synchronized in both directions. When you change `/discordia margin`,
-`/discordia minprofit` or the purse (budget), the client sends the new values over the WebSocket. The collector recomputes from its last fetched book immediately, so
-lowering a filter can reveal additional flips; raising one removes them server-side too. The
-engine's book-only safety floor (8% and 1M) still applies. Ignore entries and the non-BIN
-show/hide switch remain display filters in the client.
-
-The collector still waits for Hypixel's ~60-second market tick; it removes duplicate polling and
-gives several clients one feed, not the upstream limit.
-
-### What this does and does not fix
-
-It removes timer drift: you no longer sleep a blind 60 s and miss a whole tick. You see new listings
-within ~5 s of the API publishing them.
-
-It does **not** make you faster than the API tick itself. Everyone polling the same endpoint sees the
-same listings at the same moment; the edge is in the filters, not in the polling. Anything faster
-means reading the in-game auction house UI, which is automation and against Hypixel's rules.
-
-## Build
-
-```bash
-./build.sh
-```
-
-First run downloads the 26.2 client jar, Fabric Loader, Gson and Minecraft's library set into
-`.tooling/` and `libs/` (gitignored). Output: `build/libs/discordia-1.3.0.jar`.
-
-Install: Fabric Loader 0.20.1+ profile for 26.2, drop the jar in `.minecraft/mods`. No Fabric API
-dependency.
-
-Minecraft 26.x ships **unobfuscated** and Mojang publishes no `client_mappings` for 26.2, so Loom
-cannot provision mappings (`Failed to find official mojang mappings for 26.2`). The build compiles
-directly against the client jar. That is why there is no `build.gradle`.
-
-## Run the engine without Minecraft
-
-```bash
-java -cp "build/classes;libs/gson.jar" dev.mmm.discordia.tools.FlipConsole --budget 50m
-```
-
-Flags (both `--flag value` and `--flag=value`):
-
-| Flag | Default | Meaning |
-|---|---|---|
-| `--budget` | `50m` | total coins you will deploy |
-| `--min-profit` | `400k` | minimum profit per flip, after tax |
-| `--margin` | `8` | minimum auction return, percent |
-| `--max-margin` | `60` | auction sanity cap |
-| `--confidence` | `0.35` | minimum price-confidence score |
-| `--limit` | `100` | results per market |
-| `--no-bazaar` / `--no-ah` | | skip a market |
-| `--fast` | off | newest page only, scored against the full book (mimics the in-game loop) |
-
-The console keeps its sale history in `build/discordia-sales.json`, so repeated runs accumulate volume.
-
-## Layout
-
-```
-src/main/java/dev/mmm/discordia/
-  core/            plain Java, no Minecraft imports
-    HypixelApi     public bazaar + auction endpoints, parallel page fetch
-    MarketSnapshot parsing, order-book sides, BIN grouping
-    Nbt            minimal NBT reader: item_bytes -> ExtraAttributes + lore
-    ItemVariant    reforge, stars, pet level and enchant signature keys
-    SoldStats      7-day realized-sale window, persisted
-    FlipEngine     filters and maths
-    Tax            bazaar tax, AH fee brackets, claim tax
-    FlipConfig     every tunable
-  tools/FlipConsole  run the engine without Minecraft
-  DiscordiaClient     entrypoint, key polling, chat output
-  MarketService    heartbeat scanner, full book every 10 min
-  CollectorClient  WebSocket client used by collector mode
-```
-
-The embedded collector reuses the standalone collector sources under `../collector/`; the mod build
-compiles those plain-Java classes into the jar, so there is no extra runtime dependency.
-
-## Auction snipes (non-BIN, ending soon)
-
-A separate list of normal auctions whose current bid is well under the BIN reference price. Non-BIN
-auctions are a different market: a live dump had **2,602** of them against 38,614 BIN listings, and
-they resolve on a timer instead of a fixed price, which is why they are not mixed into the BIN flips.
-
-For each non-BIN auction the mod reads `end`, `highest_bid_amount` (falling back to `starting_bid`
-when nobody has bid) and the same item variant signature used elsewhere. The reference is the BIN
-pool: exact variant first, then the enchant-stripped group, then name/tier — at least 3 comparables.
-That thin floor is deliberate: requiring the usual 8 would have excluded almost every auction item.
-
-Filters: ends in 45 seconds to 30 minutes, bid within the purse, at least **100k** profit after
-resale tax, at least **10%** margin scaled up with the bid, confidence ≥ 0.25. Results are sorted by **end
-time**, not profit, because the section is only useful if you can still bid. Each row shows a **max
-bid**: the highest bid that still leaves the minimum profit, so you never have to do the fee math
-while a timer runs.
-
-Live output:
-
-```
-Scythe Blade   LEGENDARY   5.49M -> 6.48M   +863.3k   16%   ends in 13m
-  /viewauction 1659cb4a3fbe47dea2942093bad01a54
-  ends in 13m, bid 5.49M vs 6.48M; max bid 6.25M
-```
-
-This section is **sparse by nature**: only 21 auctions ended within 10 minutes of that dump, and
-most had bids already near the reference. One hit passed the filters. Widening the window to 30
-minutes is what makes it useful without scraping the bottom of the book.
-
-The bid is not a purchase: another bidder can outbid you, and the max bid is a ceiling rather than a
-target. `J` opens the auction so you can bid yourself; nothing here bids for you.
-
-## Deterministic income
-
-A separate section for coins that do not depend on market timing.
-
-**Listings under the NPC price.** Prices come from
-`/v2/resources/skyblock/items` (`npc_sell_price`, 2,375 items with a positive value); the auction
-lore does not contain the NPC line, which is why the resources endpoint is used. A listing qualifies
-when `npc − price ≥ 5k` and the margin is at least 1%. Those thresholds are deliberately small:
-the largest gap in a live dump was **19.2k on an 800k item**, so a 100k floor would have hidden
-every opportunity. There are no fees on either side, but Hypixel's daily NPC sell cap applies, and
-prices assume one item per listing (stacks would make the gap larger, never smaller).
-
-**Forge conversions.** Recipes are bundled from the NotEnoughUpdates repo (`items/*.json`,
-`recipes[type=forge]`): inputs, output count and duration. At runtime the cost is built by **walking
-the bazaar ask book**: each input level contributes `price × available amount`, so 160 Enchanted
-Mithril is priced at what those 160 units actually cost, not at the top ask. The output is sold the
-same way through the bid book. If either side lacks enough depth, the recipe is skipped. Revenue is
-that fill minus 1.25% tax and `per day = profit × 86400 / duration`. Only recipes whose inputs *and*
-output are bazaar-traded are priced; anything else is skipped rather than guessed.
-
-Margins above **150%** are rejected (`maxForgeMarginPct`). A number that large usually means one
-lonely bid or one cheap level, not an edge. Bundled today: Refined Diamond/Mithril/Titanium,
-Bejeweled Handle, Golden Plate, Perfect Amber Gem, Drill Engine, Mithril and Titanium Drill Engines.
-
-Live output:
-
-```
-Perfect Chestplate - Tier I   RARE   800.0k -> 819.2k   19.2k   2%   NPC
-Golden Plate (forge)           -     1.59M -> 2.28M     687.7k  43%  2.75M/day
-Drill Engine (forge)           -     3.12M -> 4.26M     1.14M   36%  910.4k/day
-```
-
-Refined Mithril is now excluded: its 256% margin survived the depth walk (160 units really were
-available at 1,404 and the 809k bid was real), which is precisely the kind of number the cap exists
-for.
-
-`J` on a forge conversion does nothing useful (there is no command), so the mod tells you to open
-the forge instead.
-
-**Kat upgrades.** `kat.json` is generated from the official Hypixel SkyBlock Wiki's `Kat/Costs`
-table (fetched 2026-11-24): **209 upgrades across 61 pets**, each with a base coin cost, a duration
-and its material list. Material names are resolved to SkyBlock ids through
-`/v2/resources/skyblock/items`, so no names are hand-mapped. This is a verifiable source rather
-than a copied spreadsheet — the same table lists Armadillo's Legendary→Mythic upgrade that the
-SkyblockRepo pet JSON omits.
-
-Only **level-1** pets are evaluated. Kat's coin cost drops by 0.3% per level, and level 1 is the
-only level where the published base price is exact; a level-1 pet also stays level 1 because Kat
-preserves XP. Buy price is the median level-1 listing of the source rarity, sale price is the lower
-quartile of the level-1 target rarity after AH tax, and materials are priced at the live bazaar ask.
-Both pools need at least 2 listings and every material must be bazaar-traded; otherwise the upgrade
-is skipped. One pet can be at Kat at a time, so `per day = profit × 86400 / duration`; Kat Flowers
-and Bouquets can shorten the timer but cost coins and are not modelled.
-
-From a live book: 206 level-1 pet keys, 38 profitable upgrades. Examples: Pig Common→Uncommon at
-1.69M + 327k materials → +1.80M in 1 minute; Armadillo Legendary→Mythic at 13M + 1M + 8.28M
-materials → +4.85M in 1 hour. Short, thin upgrades rise to the top of the per-day ranking, which is
-why the detail line always shows the pool size (`max 2 listings`).
-
-## Variant keys
-
-A 5★ Heroic Hyperion with Ultimate Wise V is not the same item as a clean 3★ one, so listings are
-no longer pooled by name alone. Each listing is keyed by:
-
-| Part | Source |
-|---|---|
-| base item + tier | `item_name` + `tier` |
-| reforge | `ExtraAttributes.modifier`; recent sales use the exact reforge first, then a reforge stone in the same price band |
-| stars | `ExtraAttributes.upgrade_level` |
-| pet level | `[Lvl N]` in the display name (`petInfo` carries `exp`, not a level) |
-| pet tier | `petInfo.tier` — the **actual** rarity, not the auction's displayed one |
-| held pet item | `petInfo.heldItem` (for example `PET_ITEM_TIER_BOOST`) |
-| enchants | `ExtraAttributes.enchantments`, sorted, FNV-1a hashed |
-
-The reforge does matter, but its value is evidence-based. Recent sales are checked with the **exact
-reforge** first. Only when that reforge has no sales does the engine fall back to reforges whose
-stone cost is in the same band (Withered/Fabled are close; Lustrous/Gilded are not). The reforge word
-is stripped from the display name before pooling, so a Withered, Fabled or Spicy copy with the same
-stars and tier still caps the others — that is what killed the Shadow Fury false positive. The detail
-line says `(cheap reforge pooled)` when the pool is not a single reforge.
-
-**Recombobulator:** `rarity_upgrades` marks a recombed item. A **non-recombed** listing is capped by
-the cheapest recombed copy of the same item, stars and pet level, minus the live Recombobulator ask
-(about 10–11M). A recombed listing is not capped. This is why a non-recomb Atomsplit at 50.9M cannot
-be sold at 56M when a recombed copy exists at 58M — the recomb makes the non-recomb effectively a
-47M item, so the listing is rejected. The recombed Storm's Boots and Primordial Helmet are priced
-normally; the cap only applies to the non-recombed versions.
-
-**Wither Impact scrolls:** `ability_scroll` is parsed for Necron blades (`HYPERION`, `ASTRAEA`,
-`SCYLLA`, `VALKYRIE`). All three of `IMPLOSION_SCROLL`, `SHADOW_WARP_SCROLL` and
-`WITHER_SHIELD_SCROLL` mean **Wither Impact**. A blade missing scrolls is priced against full
-Wither Impact listings of the same item/stars/tier, minus the **instant bazaar cost** of every
-missing scroll; the bazaar depth must fill all of it in one purchase. If that arithmetic does not
-leave the normal profit/margin, the blade is skipped. Scrolls are currently about 509M for all
-three; a blade whose full copy is not worth more than the base plus those scrolls is never shown.
-
-Pools widen only when the data forces it, and each step costs confidence:
-
-| Pool | Key | Used when | Multiplier |
-|---|---|---|---|
-| exact variant | every part above | ≥ `minAuctionListings` listings | ×1.00 |
-| same variant, any enchants | drops the enchant hash | exact pool too thin | ×0.92 |
-| base item pool | name + tier | both too thin | ×0.80 |
-
-Each flip's detail records which pool priced it, for example
-`heroic, 5★, 26 ench [exact variant] next of 41 BINs`. On a live book of 20 auction flips, 15 priced
-from an exact pool and 5 from the enchant-agnostic group. Page 0 split 877 listings into 508 exact
-pools versus 496 base pools, so the extra dimensions are doing real work rather than collapsing.
-
-Pets need special handling: every pet's NBT id is `PET`, so the id comes from `petInfo.type` and the
-level from the display name. Rarity comes from `petInfo.tier`, **not** the auction's displayed
-tier: a held **Tier Boost** makes an Epic pet display as Legendary, and is priced as the Epic it
-actually is, with `PET_ITEM_TIER_BOOST` kept in the key. Pet pricing stays inside the **same level
-bucket**; a Lvl 1 copy is not allowed to cap a Lvl 100 pet, because the level is most of the value.
-
-**Skins, runes, and dyes:** unapplied skin items, **all runes**, and **all dyes** are dropped at parse time
-(`isExcludedCosmetic`: name contains `skin`/`rune`, the SkyBlock id contains `SKIN`/`RUNE`, or the
-ExtraAttributes carry a `runes` compound). An applied skin adds no value and does not change the
-variant key, so the item is priced exactly like the regular version; an item carrying an applied
-rune is dropped instead. Armor carrying an applied dye (`dye_item`) is dropped too, so a dyed
-chestplate cannot set or inflate the price of the undyed version. Dye sales are excluded from new
-sale statistics for the same reason.
-
-## Time to sell
-
-Hypixel gives no way to join a sold auction back to the listing it came from. That was verified
-against live data, not assumed:
-
-- `auctions_ended.auction_id` matched **0 of 168** active `uuid`s, even after normalising dashes;
-- matching on seller + price produced pairs with **different `item_bytes`** — coincidences, not the
-  same listing;
-- matching on NBT signature + seller + price hit 8 of 40 sales, only **2 unambiguously**, with
-  durations spread from 5 minutes to 14 hours.
-
-That is too noisy to put in front of a player, so time-to-sell comes from throughput instead
-(Little's law): **`(listings + 1) / sales per hour`**.
-
-- **Sales per hour** — realized BIN sales with the same variant signature, 24-hour window,
-  requiring at least 3 sales.
-- **Listings** — the active pool the flip was priced from (exact, group, or base).
-- Falls back to the base item's rate when the exact variant is too sparse, and reports nothing when
-  there are no recent sales at all.
-- Denominator is floored at 1 hour and capped at 24, so a fresh install cannot imply 60× the rate.
-
-Example from a seeded run: 41 listings competing, 6.0 sales/hour → `~7.0h`. The chat line appends
-`~7.0h`, the console has a `SELLS IN` column, and the detail reads
-`41 listed, 6.0 sales/h -> ~7.0h`.
-
-It is a market average, not a stopwatch on one listing: it counts overpriced listings that will
-never sell, which skews slow, and ended sales carry no rarity tier.
-
-## Attribute mispricing
-
-Variant keys say *what* differs; this says what the difference is worth. The rule is that an
-attribute is only worth something if this exact item has **realized sales carrying it**:
-
-| Input | Use |
-|---|---|
-| plain sales (0 stars, no reforge, pet 0, ≤2 enchants, no ultimate) | baseline, needs ≥5 |
-| sales with the same stars / reforge / pet level **and the ultimate** | comparable, needs **≥4** and **≥5% of the item's sales** |
-| bazaar book price (`ENCHANTMENT_<NAME>_<LEVEL>`) | hard ceiling on an ultimate's value |
-| sales per day for the item | liquidity discount: 1.0 / 0.75 / 0.5 / 0.25 |
-
-`premium = median(comparable) − median(plain)`, capped by book cost and scaled by liquidity.
-
-**The Aspect of the Jerry rule:** a Soul Eater V book dropped on an item nobody buys has no
-comparable sales, so the comparable set is empty and the valuation is discarded. Value is never
-transferred from a book price onto an item that has no market for it. A guard test seeds 10 plain
-sales and zero attribute sales — the valuation is `null` and nothing is surfaced.
-
-**The lucky-sales rule:** the comparable set is now only sales that actually carry the attribute
-(all of the variant's ultimates, plus the same stars/reforge/pet level), and it needs **more than
-three** of them *and* at least **5% of the item's total sales**. Three lucky sales, or four sales on
-an item that trades 200 times a week, no longer create a premium. A plain variant (no ultimate,
-stars, reforge or pet level) has no attribute to value at all and returns `null`.
-
-A listing becomes an attribute play when all of these hold:
-
-- its price is within 15% of the plain median;
-- the evidenced premium is at least 1M and at least 15% of the price;
-- it is within budget.
-
-The target becomes `min(comparable, plain + premium)`, the profit is recomputed, and the sanity cap
-widens from 60% to 150% **only when that comparable target is the one actually used**. A higher
-asking price never qualifies for the wider cap.
-Attribute plays need no book at all — if the pool is too thin they are priced from comparables alone
-and the detail says `[attribute comparables] no book`.
-
-They show up with a `★` in chat and a second `ATTR` line in the console:
-
-```
-ATTR plain 6.19M, similar 19.50M | 5★, ancient, 6 ench [attribute comparables] no book
-= 12.85M; 5.0 sells/day (n=10, median 6.19M); 5 listed, 0.4 sales/h -> ~14.4h
-```
-
-Limits: only ultimate enchants are valued individually (normal enchants are filler), pet level
-comparables use a ±15 level band, and everything is based on the 7-day sale window.
-
-## Why the filters look like this
-
-- **Bazaar:** Hypixel's `buy_summary` is the ask side and `sell_summary` is the bid side (they are
-  named from the opposite perspective, which is why `buyPrice` is always above `sellPrice`).
-  The engine takes the top of both books, applies the 1.25% tax, and requires a margin between
-  0.2% and 15%, 1,000+ units/day of two-sided volume, and ≥50k coins/hour using a 10% capture rate
-  capped by how many units your budget can hold.
-- **Auctions:** with **5+ sales of the exact reforge**, the target is 98% of the realized median,
-  capped by 99% of the next-cheapest BIN. If that reforge has no sales, sales from a reforge stone
-  in the same price band are used (Withered/Fabled, for example; never Lustrous vs cheap). With
-  **1–4 sales**, the target is the next listing, but only if it is not above
-  `maxThinAnchorOverSales` (1.0×) the realized median and the margin clears
-  `thinSalesMarginPct` (5%); a next listing many times the sale price is treated as manipulated.
-  The listing must be the cheapest, with at least two other listings within 10% of the anchor, at
-  least **one** comparable sale and ≥1 sale/day. Margins are capped at 60% (150% only when an
-  attribute comparator sets the target).
-- **Pets are included.** Rarity is the actual `petInfo.tier`, so a Tier Boosted Epic is never priced
-  as Legendary. Held items and pet level are part of the variant; comparisons stay in the same level
-  bucket. A Tier Boost is only bought when that actual-tier, tier-boosted pool supports the resale
-  price.
-- **Skins are never valued.** Unapplied skins are skipped entirely. Applied skins add nothing and
-  are priced as the plain item.
-- **Dyes are ignored.** Standalone dyes and armor with an applied dye are excluded from listings,
-  pools, and new sales evidence, so dye value can never inflate a normal armor flip.
-- Percentage margins normally require 8% (5% for a thin sample), but a **≥1M absolute profit**
-  bypasses both: a 2% return on a 380M pet is still 5.9M coins and worth taking when sales support it.
-
-A live book after these changes no longer contains the Withered Shadow Fury: cheap-reforge pooling
-made it compete with Fabled copies and it did not survive. The same book showed why the thin-sales
-guard matters: Pesthunter Artifact had a 7.82M next listing but a 1.10M median across four sales,
-so it was rejected rather than shown as +2.66M. The non-recomb Atomsplit was also rejected by the
-Recombobulator ceiling, while already-recombed blades are priced normally.
-
-**Plain-item weekly-median guard.** A plain item (no stars, reforge, pet level, ultimate, scroll,
-recomb or held pet item) must have a trusted Cofl weekly summary before a BIN flip is shown. It
-needs at least **8** weekly sales; the asking price may not exceed **1.15×** the weekly median on
-thin local evidence, or **1.25×** when at least **5** recent exact-variant sales support normal
-price fluctuation. The projected resale target is capped at **1.15×** the median. This still stops
-a 40M Gyrokinetic Wand with a roughly 25M weekly median and no thick local support.
-
-The cap was 1.40× until PORTALIZER on 2026-11-24: 53 weekly sales at a 6.2M median, then a pump
-put eleven sales above 11.6M and lifted every listing to ~8M. A 7M ask was announced as a flip
-because the exit was allowed to reach 8.7M — 40% over what the item had ever sold for. The weekly
-median is what the item actually sells for; 15% is drift, and anything past that is the pump
-talking. The guard
-applies to BIN flips universally for plain items and to non-BIN snipes whenever a weekly summary
-is available. It can hide a plain BIN while Cofl is still loading; that is safer than turning an
-unverified pumped book into a purchase recommendation.
-
-
-## Conservative exit, hold horizon, and why nothing was shown
-
-Three extra gates run before a BIN flip is announced. They exist because the recurring way a flip
-finder loses money is not a bad formula, it is arithmetic that quietly assumed the best case.
-
-**The ask is not the exit.** An accepted flip must still be profitable at a *conservative* exit:
-the lower of the target and, once there are at least **5** sales of the exact variant, their
-realized **p25**; then less a **1.5%** reserve for price drift, the second listing fee if it does
-not sell, and execution slippage. The chat line shows the ask you should list at, but the profit,
-the margin and every gate are computed at that floor, and the detail line ends with it:
-
-```text
-6 listed, 1.2 sales/h -> ~5.7h, 100% inside 3.0d (floor 10.62M after 1.5% reserve)
-PestHunter ... 13 listed, 4.0 sales/h -> ~3.5h, 98% inside 7.0d (floor 8.94M, p25 of 9 sales)
-```
-
-So a flip whose profit only exists at the optimistic ask is now suppressed instead of announced.
-`conservativeSalesQuantile` and `riskBufferPct` are the knobs; both default stricter than "off".
-
-**A slow flip is a capital trap.** Time to sell is `(listings + 1) / sales per hour` from realized
-sales. A candidate whose expected hold exceeds `maxHoldHours` (**168h**, 7 days) is refused, and a
-book-only flip — priced from listings with no same-variant sale behind it — gets a tighter
-`maxBookOnlyHoldHours` (**72h**). When the hold cannot be estimated at all, the margin requirement
-goes up by `unknownLiquidityMarginPremiumPct` (2%) instead of the item being treated as instant.
-
-**Expected value has to be positive.** `saleProbability` is a Poisson arrival,
-`1 - exp(-horizon / hold)`. Expected profit is `p × profit` minus the cost of *not* selling (one
-more listing fee plus a 10% markdown to force it) minus the cost of the coins being locked up
-(0.5%/day). A 4M headline on a 30-hour hold is fine; the same headline on a month-long hold is not.
-
-**A rare item can trade more often than it is listed.** The usual floor of **6** listings is
-lowered to **3** when the exact variant already has **5** realized sales — realized sales are
-stronger evidence than a thin book. Only the listing *count* moves: the unique-cheapest rule, the
-±10% support requirement, the spread cap and every ceiling above still apply, and the flips that
-qualify are labelled with the pool they were priced from.
-
-**Scrolls are capital, not a discount.** A partial Wither blade's missing scrolls are bazaar-priced
-before it is priced at all, and `buy price + scroll cost` must fit inside the purse. A 30M
-partial Hyperion needing 300M of scrolls is not an affordable flip even though the listing is.
-
-Non-BIN snipes take the same 1.5% reserve on their BIN reference, because a bid is not a purchase
-and the reference is not that auction's resale price.
-
-### `/discordia status`: the `why` row
-
-Every refusal increments a stable reason code, and the last scan's top four are shown:
-
-```text
- why     1187 rejected  |  THIN_POOL 820, NO_SALES 190, MARGIN 96, CAPITAL_TRAP 22
-```
-
-An empty feed can now be told apart from a broken one. `THIN_POOL` and `NO_ANCHOR` mean the book is
-thin or nobody is undercutting anyone, `GLOBAL_PENDING` means Cofl has not answered yet,
-`GLOBAL_ZERO` means the market really does not trade the item, `CAPITAL_TRAP` means it trades too
-slowly to be worth the coins, and `SCROLL_UNAVAILABLE` means the bazaar cannot fill the scrolls.
-The console prints the same counts (`FlipConsole`), and `verify.sh` asserts them offline.
-
-| Code | Meaning |
-|---|---|
-| `NO_ANCHOR` | another copy is cheaper, this price is duplicated, or there is nothing to undercut |
-| `THIN_SUPPORT` | the pool around the resale anchor is too thin to be a market |
-| `THIN_POOL` / `WIDE_SPREAD` | too few listings to price from, or they disagree too much |
-| `NO_SALES` / `LOW_VOLUME` | no realized sale ever, or below the sells/day floor |
-| `GLOBAL_PENDING` / `GLOBAL_ZERO` | plain item: the weekly summary is unanswered, or too thin |
-| `BUY_ABOVE_GLOBAL` | the entry is above the weekly-median multiple |
-| `MANIPULATED_ANCHOR` | the next listing is many times the realized price |
-| `RECOMB_CEILING` / `NO_FULL_BLADE` / `SCROLL_UNAVAILABLE` | a component ceiling cannot be met |
-| `OVER_BUDGET` | price plus add-on cost exceeds the purse |
-| `MIN_PROFIT` / `MARGIN` / `IMPLAUSIBLE_MARGIN` | the conservative exit does not clear the gate |
-| `LOW_CONFIDENCE` | not enough agreeing evidence for the target |
-| `CAPITAL_TRAP` / `RISK_ADJUSTED` | the hold is too long, or expected value is not positive |
-
-## Why the feed went quiet after the first scan (fixed in 1.2.0)
-
-A live scan prices a listing against a cached book that does **not** contain it; a full scan prices
-it against one that does. The anchor rule required exactly one copy at the listing's price, and read
-"not the cheapest" as "no flip". In a live scan the candidate's own entry was missing, so its anchor
-came back as *"nobody is at this price, and there is no next listing"* for **every** underpriced
-listing — which is every listing that could ever be a flip.
-
-The symptom was exactly the reported one: the first full book produced a handful of flips, and then
-the page-0 and SkyCofl lanes were silent forever, because no candidate in either lane could clear
-the anchor. `NO_ANCHOR` counted every one of them, which blamed the market for a scanner bug.
-
-`resaleAnchor` now takes both sides — the cached pool and the prices this scan itself saw — and
-`candidateInPool` says whether the cached book already holds the auction. It returns 0 only when a
-competing copy really is cheaper or really does sit at the same price. The pool **count** behind the
-listing floor and the confidence score is corrected the same way, so a 6-listing book does not look
-like 5 listings to a live lane. Page 0 and a full scan now agree on the buy price and the target,
-and `AlgorithmGuardProbe` asserts that parity, plus two live copies at one price (both refused) and
-a live listing above the cached cheapest (refused).
-
-Two reason codes now separate the failures that used to share one: `NO_ANCHOR` means another copy
-beats this listing, and `NOT_CHEAPEST` means it is the only copy with nothing above it.
-
-## Latency: sub-second, without hammering the API
-
-The auction dump is republished on a tick, and every auction created in a tick lands on page 0.
-Both facts were measured, not assumed: the tick period is **60,000 ms** across consecutive
-transitions, and over one tick **130 of 130** new auctions were on page 0 (the full book was
-44,775 auctions over 45 pages). So a page-0 fetch is the whole new-listing feed, and a tick
-change is exactly the moment to fetch it.
-
-`MarketTicker` measures the tick period from the transitions it sees and predicts the next one.
-The scan thread polls the heartbeat hard (150 ms) for the ~1.2 s before the predicted boundary
-and ~2 s after it, and sleeps otherwise. That is what makes sub-second delivery affordable: a flat
-150 ms poll would be 172 KB × 6.7/s, and even a flat 2 s poll is about 300 MB an hour.
-
-Measured against the live API, end to end from tick detection to scored flips ready:
-
-| Step | Measured |
-|---|---|
-| heartbeat poll period (in the burst) | 150 ms |
-| page-0 request | 58–70 ms |
-| page-0 parse | 79–86 ms |
-| scoring | 11–18 ms |
-| **total, tick detected to chat-ready** | **148–167 ms** |
-| announcement | dispatched on the scan thread, no pulse wait |
-
-That is **under a second with room to spare**, sustained: measured over six consecutive ticks,
-with the measured period at 60.3 s and drift 0 ms. The announcement is dispatched to the client
-thread the moment a scan publishes; the 2 Hz pulse stays only as the purse refresh and as a
-safety net.
-
-Cost: about 13 heartbeat requests a minute, roughly 2.2 MB/min or ~130 MB/hour, instead of
-300 MB/hour for the flat 2 s poll. If a predicted tick has not arrived the window widens into a
-bounded hunt and the next transition re-measures the period, so a wrong prediction costs one late
-scan, never a dead feed. The first scan after joining still builds the full book (about 4.4 s),
-which is unavoidable.
-
-### What this does not fix
-
-Hypixel publishes no listing before its own tick, and everyone polling the same public endpoints
-sees a listing at the same instant. Sub-second delivery is not the same as being first: the ~150 ms
-here is your own pipeline, not an edge over other players.
-
-### Reading the auction-house UI instead (not implemented, on purpose)
-
-It is technically possible and it is worth being precise about why this mod does not do it.
-
-- **How it would work.** No screen reading or OCR is needed. When you open the auction house the
-  server sends the container contents, and a client-side mod can read the open menu's slots
-  directly, or read the `ClientboundContainerSetContentPacket` / `ClientboundContainerSetSlotPacket`
-  for it. Paging needs a click per page, so the data arrives only as fast as the server serves it.
-- **It would not scan everything.** The GUI shows 45 slots at a time, sorted by the GUI's own
-  order, not by recency. A 44,775-listing book is 995 GUI pages; at a plausible click rate that
-  is minutes per sweep, and Hypixel rate-limits the auction house on top of that. It is strictly
-  slower than the 148–167 ms page-0 path for the listings that matter.
-- **Detectability is the wrong question.** Hypixel's rules prohibit mods that automate gameplay or
-  give an unfair advantage, and reading auction data through the UI to get listings before other
-  players is exactly that. Whether Watchdog's heuristics happen to catch a given build does not
-  change the rule or the ban risk — "undetectable, so it's fine" is not a safe trade for an
-  account. It also breaks this mod's stated contract: `README.md` says it does not read the
-  in-game auction-house UI or packets, and that promise is the reason it is safe to install.
-
-If you want a faster feed than the public endpoints allow, the legitimate answer is more
-sources: the SkyCofl candle/active feed already in the fast lane, and the optional collector
-server, which polls once and shares the result with every client connected to it instead of each
-client polling separately.
-
-## Margin never rises with price
-
-There is no price-scaled hurdle. `minMarginPct` (8%) is the floor at 5M and at 500M, and above
-~250M the requirement **eases**: once `minAbsoluteMarginProfit` (**20M**) is enough on its own, the
-percentage falls out of the way, bottoming at `minMarginFloorPct` (**2%**). That means a 300M flip
-needs **6.7%**, not 25% — a 74M profit there is one of the best trades the scanner can find, and a
-20M profit is worth taking too.
-
-A 74M flip on a 300M listing used to look thin to a 25% hurdle. It is not thin: it is 74M.
-
-There is no item cap and no budget share. `maxCost()` returns the purse, which the in-game client
-re-reads from the scoreboard every pulse, so a 500M listing is judged on whether you can afford it
-and whether it clears the hurdle — not on an arbitrary fraction of a configured number.
-
-## Craft flips and replacement cost
-
-Recipes are bundled, not fetched. `tools/build-craft-data.mjs` extracts 2,002 crafting outputs, 523
-star-cost tables and 86 reforge stones from NotEnoughUpdates-REPO (MIT) into `recipes.json` and
-`upgrades.json`, which ship inside the jar. A scan needs no third-party service to know what an item
-is made of.
-
-Every ingredient is priced at the cheapest route that can be proven at scan time: bazaar instant buy
-walking the real ask book for the exact quantity, the NPC price, an auction LBIN (only when at least
-two copies are listed), or crafting it in turn, six levels deep. A recipe cycle resolves to unknown
-instead of looping, and **any unpriceable ingredient makes the whole floor unknown rather than
-optimistic**.
-
-Modifiers are priced too, because they are most of the cost of a good item:
-
-| Component | Source | Terminator example |
-|---|---|---|
-| Base craft | recipe tree | 350.1M |
-| 5 dungeon stars | 1,850 Dragon essence @ bazaar | 7.6M |
-| 5 master stars | bazaar, one per level | 210.3M |
-| Recombobulator | bazaar | 9.6M |
-| Precise reforge | Optical Lens + 100k | 0.6M |
-| **Replacement cost** | | **577.6M** |
-
-That item resold for 753M, so the floor is a genuine lower bound rather than a wish. Enchantments
-are deliberately not modelled — merging books is a separate cost problem, and omitting them can
-only understate the floor, which is the safe direction.
-
-Two lanes use the number:
-
-1. **`CRAFT` flips** — buy the ingredients, craft, sell. The ingredient bill is exact; the exit is
-the usual conservative floor (weekly median, realized p25 once five sales exist, then the 1.5%
-reserve). No weekly evidence means no flip, however cheap the inputs are.
-2. **Replacement-cost ceiling on auctions** — a listing's target is capped at the craft floor plus
-`maxCraftPremiumPct` (25%), and the detail line shows `(craft floor cap ...)`. A book claiming a
-900M resale on something craftable for 300M is describing an exit that does not exist.
-
-Limits worth knowing: auction-LBIN ingredients use the cheapest copy, so a recipe needing dozens of
-an AH-only item is optimistic (bazaar ingredients are exact, because the fill walks the book);
-reforges with no known stone fail closed; and collection or slayer requirements are not checked, so
-a recipe you cannot unlock will still be priced.
-
-## Sale statistics
-
-There are two layers:
-
-1. **Global item volume** comes from SkyCofl's public 7-day price analysis. This is a market-wide
-   summary, so a sale that happened while Minecraft was closed still counts. It supplies sells/day
-   and the median (used as the conservative p25 fallback where the summary has no quartile), and it
-   prevents "not observed locally" from looking like zero demand. Active auction ids with no local
-   sale rows are queued first, then other active listings, then the complete catalog; requests are
-   serialized at about one per second and cached in `.minecraft/config/discordia-global-sales.json`.
-   Coflnet is the source of these global summaries; the client is not affiliated with Coflnet.
-   While a queued item has no answer yet, its stats are **pending**, not zero. A pending book-only
-   flip is labeled `[pending]`; it is not promoted to verified sale evidence. A timeout, HTTP 429,
-   server error, or malformed/missing-contract response leaves the item pending and retries it
-   with exponential backoff (30 seconds up to 30 minutes in production; the test harness can shorten
-   this, and honors `Retry-After`); it never clears the item to zero. A permanent item-level 4xx is
-   labeled `[unavailable]` instead, which is also unresolved rather than zero demand. Unavailable
-   markers expire after 24 hours so a corrected tag can recover, and an active listing's authoritative
-   tag (for example `PET_LION`) corrects a stale raw catalog request instead of inheriting its 4xx.
-   Unresolved book-only flips can still be surfaced, but they never count as verified sale evidence;
-   chat and console rows mark them `[pending]` or `[unavailable]`, and `/discordia status` reports
-   how many flips are unresolved.
-   Retry deadlines, attempt counts, retry tags, and unavailable deadlines persist in the cache;
-   restarting during an outage resumes the same backoff instead of re-queuing the whole catalog.
-   The cache is written through a temporary file and atomically moved, and per-item cache expiry
-   is jittered by up to an hour so refreshes do not all stampede together. `/discordia status`
-   includes the last HTTP/network failure, retry count, next retry, and unavailable count.
-   For runtime verification, `/discordia globalfault 429|timeout|500|malformed|404` simulates the
-   Cofl failure in-game; `/discordia globalfault off` restores the real source. The fault mode is
-   session-only and never persisted.
-   If Cofl reports a valid zero but local `/auctions_ended` rows exist, the local observed sales
-   win; only a genuine zero from both sources suppresses a book-only flip.
-2. **Exact variant evidence** still comes from the local `/auctions_ended` stream. `Nbt` decodes
-   `tag.ExtraAttributes.id` (searching for it wherever Hypixel nests it), which gives the SkyBlock
-   id of each sold item. These rows carry stars, reforge, pet level, held item, scrolls, and
-   recombobulation, so they are what the exact-variant and attribute pricing uses.
-
-The local 7-day window has these properties:
-
-- **sells/day** — `count / observed days`, where observed days is the time since the store was
-  created, floored at 1 day and capped at 7 (the window length). A minute of data can never imply
-  a daily rate, and a week-old install never divides by more than the window;
-- **median and p25 sold price** — what it actually cleared at, not what people are asking;
-- **volume gate** — `minAuctionSalesPerDay` (default 1), applied only after 5 observed sales, so a
-  fresh install is not blinded by missing data;
-- **per-variant rates** — timestamped sales per variant signature over 24 hours, which drive the
-  time-to-sell estimate.
-
-Local rows persist to `.minecraft/config/discordia-sales.json`, and the same tick is never counted
-twice (de-duplicated by auction id, because the heartbeat repeats it every 5 s). Timestamps use the
-ended auction's real `timestamp`, not the moment the client noticed it.
-
-## Known limits (read this)
-
-1. **Time-to-sell is a throughput estimate**, not an observed per-listing measurement, because the
-   API exposes no join key between a sale and its listing. It also ignores rarity tier (ended sales
-   carry none).
-2. **Sale volume stats are keyed by base item id** (pets by pet type), so variants share one volume
-   pool. Pricing and sale *rates* are variant-aware; the sells/day figure is not.
-3. **Thin exact pools fall back to wider ones.** The detail says which pool was used; a base-pool
-   price on a highly enchanted item is a weaker signal, which is why it carries a 0.8 multiplier.
-4. **Reference prices can be stale** for up to `fullRefreshMs` (10 min) between full dumps.
-5. **No craft flips.** Craft-cost arbitrage needs the recipe tree.
-6. **Key polling is global.** `K`/`J`/`C` also fire while a chat screen is open.
-7. **Collector filters are synchronized.** The client sends margin, profit, item-cap, and budget
-   changes to the collector, which recomputes immediately; lowering a client filter can reveal
-   flips from the last fetched book. Ignore entries and the non-BIN show/hide switch are still
-   client-side display filters. Book-only flips keep their 8%/1M safety floor.
-8. **Plain BINs need Cofl price confirmation.** When the weekly summary is pending, unavailable,
-   or has fewer than 8 sales, plain BIN flips stay hidden. This reduces the chance of buying a
-   pumped listing, at the cost of a short startup gap and some sparse-item coverage.
-9. **The conservative floor hides marginal flips on purpose.** Booking profit at the p25 rather
-   than the median, and reserving 1.5%, turns many 1-2% edges into non-flips. That is the trade:
-   the alert is what survives a worse-than-median exit, not what a perfect exit would have paid.
-10. **The hold horizon is a gate, not a suggestion.** An item that clears a large profit but is
-    estimated to sit listed longer than 7 days (3 days for book-only) is now suppressed with
-    `CAPITAL_TRAP`, even though its profit number would have looked good. Lower
-    `maxHoldHours` / `maxBookOnlyHoldHours` for a stricter, faster-turnover feed; set them to 0 to
-    disable the gate (not recommended).
-
-
-Roadmap in order: variant-level sale volume → craft flips. Global item volume is now supplied by
-the SkyCofl summary cache; local exact-variant history remains the second layer.
-
-## What was verified
-
-- Offline global-gate probe:
-  `java -cp "build/classes;libs/gson.jar" dev.mmm.discordia.tools.GlobalGateProbe`
-  proves a 206-sale global summary clears the zero-sale gate for a no-local-sale six-listing
-  Titanium book, while an explicit zero global summary leaves the identical book suppressed; a
-  synthetic local sale plus a global zero confirms that observed local evidence wins.
-- Offline global failure matrix:
-  `java -cp "build/classes;libs/gson.jar" dev.mmm.discordia.tools.GlobalFailureProbe`
-  covers 429 with and without `Retry-After`, timeout, 5xx, malformed JSON, missing contract
-  fields, explicit zero, permanent 4xx, cache reload, persisted retry/unavailable state, the
-  in-game fault switch, and stale-tag correction (`ALIAS_RING -> PET_ALIAS_RING`). No request
-  leaves loopback.
-- Contract/alias probe:
-  `java -cp "build/classes;libs/gson.jar" dev.mmm.discordia.tools.CoflContractProbe`
-  checks `LION -> PET_LION` and identity tags offline; add `--live` for two deliberately spaced
-  public contract requests. This validates the `totalSales`, `medianPrice`, and `salesPerDay`
-  fields the client now requires, rather than silently accepting a schema break. The live check
-  on 2026-11-24 returned HTTP 200 for `TITANIUM_RING` (199 sales, median 7,999,999, 28.429/day)
-  and `PET_LION` (1,867 sales at the second check, median 24,000,000, 266.714/day).
-- Lane-parity probe (2026-11-24, live): with a 36,000-listing book, three consecutive page-0
-  scans produced **0 flips before the fix** — the anchor rejected 100% of underpriced listings
-  because the candidate was absent from the cached pool it was priced against — and a real flip
-  after it (Royal Titanium Cloak 5.00M -> 5.74M). A live scan and a full scan now produce
-  identical buy prices and targets for the same listing.
-- Full reproducible check: `./verify.sh` runs the build and all four offline probes.
-- Algorithm guard probe (2026-11-24):
-  `java -cp "build/classes;libs/gson.jar" dev.mmm.discordia.tools.AlgorithmGuardProbe`
-  asserts 59 decisions offline. Listing fee exact at 9.99M/10M/10.01M/100M/100.01M including the
-  documented bracket cliff; claim tax zero at 1M, clamped to `sale - 1M` just above it, 1% above
-  that; a 5k bid on a non-BIN auction is kept as a bid and never becomes a buy price while a BIN
-  purchase price is read from `starting_bid` and not from `highest_bid_amount`; Little's law
-  (`41 listings, 6 sales/h -> 7h`) and the Poisson sale probability; six copies at one price
-  produce 6 x `NO_ANCHOR`; five dearer copies of a cheaper listing produce 5 x `NO_ANCHOR` while
-  the cheapest is priced; a lonely 40M next listing with nothing within 10% produces
-  `THIN_SUPPORT`; four 5M sales under a 40M ask produce `MANIPULATED_ANCHOR`; a thick sample of
-  five sales prices a 19.6M ask at a **4.15M floor-booked profit against 5.01M at the ask**; a
-  four-sale weekly summary produces `GLOBAL_ZERO`, an unanswered one `GLOBAL_PENDING`, and a
-  400-sale summary prices the same book; a 50M non-recomb listing against a 58M recombed copy
-  with a 10.2M recombobulator is refused while the same book without a recombed copy is priced;
-  a partial blade is capped at 33.41M by the full-blade exit after 6M of scrolls, an empty scroll
-  book gives `SCROLL_UNAVAILABLE`, and 30M + 6M scrolls over a 34M cap gives `OVER_BUDGET`; a
-  three-listing book backed by five realized sales is priced while the same book without sales
-  gives `THIN_POOL`; and two sales a month over a six-listing pool gives `CAPITAL_TRAP`.
-- Build on this machine: `ahflip/build.sh` produced `build/libs/discordia-1.3.0.jar` against the
-  real 26.2 client jar, and `collector/build.sh` produced `collector/build/classes`.
-  `GlobalGateProbe`, `GlobalFailureProbe` and `CoflContractProbe` all still pass, and `./verify.sh`
-  (all four probes) exits 0. The build script now falls back to `python3` when `node` is absent,
-  and the four shell scripts are committed executable, so `./build.sh` and `./verify.sh` run as
-  documented instead of failing with "Permission denied".
-- Pumped-book guard: a synthetic plain Gyrokinetic-like book with a 40M entry, a 45.77M next ask
-  and a 25M weekly median is rejected, while the same book is accepted when the synthetic weekly
-  median is 50M. A separate thick-evidence control with five recent 40M sales allows a 30M entry
-  against the same 25M weekly median. The existing global-gate Titanium control still passes.
-- The engine runs against the live API: 38k+ auctions in ~2-3 s, filtered results for both markets.
-- The NBT reader parsed **65 of 65** BIN sales from a live `auctions_ended` window.
-- Variant keys were checked against live listings: a Heroic 5★ Hyperion with 26 enchants keyed as
-  `heroic hyperion|MYTHIC|heroic|5|0|b5cf8c267609fa89`, and engine output showed 15 exact-pool and
-  5 group-pool flips out of 20.
-- Time-to-sell: a seeded 6.0 sales/hour rate over a 41-listing pool produced `420 min (7.0h)`, and
-  the rate maths was checked against a synthetic 12-sales-in-2-hours store (exactly 6.00/h).
-- Attribute pricing: a listing at 6.5M against plain sales of 6.19M and comparable sales of 19.5M
-  surfaced at a 12.85M target (92% margin), including through a thin book; the same setup with zero
-  attribute sales produced a null valuation and no play, which is the Aspect of the Jerry guard.
-- Attribute guard: seeded stores asserted a 6-of-100 attribute share prices at a 4.0M premium
-  (6 samples), while 3 attribute sales and a 4-of-204 (1.96%) share both returned `null`; a plain
-  variant also returned `null`, and the margin-cap rule resolved to 60% for a pool target versus
-  150% for a comparable target.
-- Auction snipes: a live book had 2,602 non-BIN auctions (21 ending in under 10 minutes, 89 under an
-  hour); with a 30-minute window and 3-comparable floor, one passed — Scythe Blade at 5.49M against
-  a 6.48M reference, 863k profit, 16% margin. The low count is the data, not a parse failure.
-- Deterministic income: `npc_sell_price` covered 2,375 items and a live dump had 17 listings below
-  NPC; the forge table loaded from the packaged resource (after fixing resources not being on the
-  runtime classpath). After order-book depth and the 150% cap, 3 recipes passed, led by Golden Plate
-  at 687.7k per 6h (43%) and Drill Engine at 1.14M per 30h (36%); Refined Mithril was rejected.
-- Forge depth: a synthetic book asserted `buy(10)` across two ask levels costs exactly 130,
-  `sell(2)` across two bid levels fetches 19, and a fill larger than the book reports incomplete.
-  On the live book, 160 Enchanted Mithril filled completely for 224,688 and one Refined Mithril bid
-  paid 809,091 — a 256% raw margin, excluded by the cap rather than mispriced by depth.
-- Auction recalculation: the previously recommended Lv1 Legendary Ender Dragon carried a Tier Boost
-  (displayed Legendary, actually Epic), and is now keyed and priced as Epic with the held item. The
-  Withered Shadow Fury false positive was fixed by reforge-band pooling: a Withered and a Fabled
-  copy with the same stars/tier now produce the same group key, and the Shadow Fury no longer
-  appears as a flip. The non-recomb Fabled Atomsplit at 50.9M is rejected because the cheapest
-  recombed copy is 58M and the Recombobulator ask is about 10.2M, giving a 47.2M ceiling; the
-  already-recombed Storm's Boots and Ancient Primordial Helmet are not capped. Pesthunter Artifact
-  (7.82M anchor vs 1.10M median), Dolphin (11.88M vs 2.50M) and Combat Exp Boost (4.55M vs 2.00M)
-  were rejected by the thin-sales manipulation guard. No skins, runes or dyes appeared in the output.
-- Wither Impact parsing: 70 Necron blades were inspected and 27 were full Wither Impact; the three
-  scrolls cost 509.1M from the bazaar at the time of the check. A partial blade is only considered
-  when the full listing minus that instant scroll cost clears the normal filters.
-- Kat: the generated table loaded all 209 rows from the jar; a live book had 206 level-1 pet keys
-  and 38 profitable upgrades (Armadillo Legendary→Mythic +4.85M, Flying Fish +7.16M, Hermit Crab
-  +9.73M), with the `[Lvl 1]` lookup fixed after the first run matched zero keys because base keys
-  are lowercased.
-- The heartbeat and the auction dump reported the same `lastUpdated` across three polls, and page 0
-  was confirmed newest-first against the last page.
-- The embedded collector probe accepted a tokenless loopback WebSocket, sent restrictive then broad
-  filters, and observed the snapshot change from 12 BIN to 0 and back to 12 (the next market tick
-  then produced 2); the Java `CollectorClient` also connected with no token and sent the same filter
-  control frames successfully.
-- The standalone collector still rejects unauthenticated `/health` with 401 and accepts the bearer
-  token with 200.
-- The mod jar compiles against the real 26.2 client jar and packages with valid metadata.
-- **Not verified:** launching it in a Fabric client. That needs a real 26.2 instance.
+# Discordia
+
+A client-side Hypixel SkyBlock flip finder. It reads public market data, applies conservative
+filters, and prints live candidates to your own chat.
+
+The in-game client is **auction-house only**. Bazaar order flips and conversion income are not
+generated or sent to chat; the bazaar feed is used only when available to value AH items. The
+standalone console retains those extra sections for diagnostics.
+
+**It never buys, bids, clicks, or confirms anything.** Clicking a chat notification or running
+`/discordia open` opens one auction (`/viewauction <uuid>`); you still decide and click Buy. The mod
+does not poll or track keyboard input; all actions are chat commands or clickable chat lines.
+
+## Live chat notifications
+
+Discordia starts with live notifications enabled. Bare `/discordia` toggles them off or back on.
+While on, **every new qualifying BIN flip** is announced as soon as it enters the feed, as a
+clickable chat line with
+the buy price, target sale price, realized median, estimated profit, and expected time to sell.
+Only BIN auctions are shown by default. Non-BIN ending auctions stay hidden until
+`/discordia toggle nonbin`; when enabled, `/discordia list` groups them separately and notifications
+are tagged `[BIN]` or `[non-BIN]`. Clicking a line runs `/viewauction <uuid>`; it does not buy anything
+for you. A red `[ignore]` button at the end of the same line hides that item name from future
+notifications. Ignore entries persist in `config/discordia-ignored.txt`; `/discordia unignore <item>`
+restores one.
+
+On a fresh install the mod starts the collector feed automatically inside the game; the scanner
+subsection below describes that same heartbeat/page-0/full-book loop either way. The scanner uses up
+to 100 results, accepts a six-listing book, and keeps strong gaps even when there is no same-variant
+sale. Those unverified entries are marked `[book]` and use the next real
+listing as the target; their median is `-`. They still require two supporting listings, at least
+1M profit, an 8% margin, 35% confidence, at least 1 recent sale/day for the item, and an exact or
+same-variant group pool (never the mixed base-item pool). Those entries are suppressed when the
+market-wide 7-day summary has zero sales. If the global summary is unavailable but local rows
+exist, the observed local rows are used; with no local rows the item stays pending/unavailable
+rather than being treated as proof that it never sells. Plain items additionally require a
+trusted weekly median before they are shown (see the plain-item guard below), because a thin
+or pending summary is exactly where a pumped active ask can look like the resale price.
+At first scan the public SkyBlock item resource is loaded from
+`/resources/skyblock/items` (about 5,700 item ids), with the v2 route as a fallback; the live check
+showed both routes returning the same 5,691 ids. Every live auction, bazaar, sale, and global-summary
+id is registered too. An item with no sale rows resolves to an explicit `count=0, perDay=0` record
+instead of `null`; the status line reports the catalog, known-id, and global-cache counts. If the
+resource endpoint is unavailable, live ids are still registered and the catalog count stays at zero
+until a later retry.
+An existing `ahflip-sales.json` file is copied to its `discordia-sales.json` name on first launch, so
+the old 7-day history is retained.
+
+The budget is read from the Hypixel sidebar `Purse:` line (commas and `k`/`m`/`b` suffixes are
+supported) and is updated as the purse changes. There is no separate budget setting in the mod.
+
+### Chat commands
+
+The command tree is registered locally, so `/discordia` and its subcommands appear in Minecraft's
+tab completion. It is still a client-side command: the server never receives it.
+
+```text
+/discordia                     toggle live notifications
+/discordia toggle              toggle live notifications
+/discordia toggle nonbin       show/hide non-BIN ending auctions
+/discordia list                print the current BIN flips
+/discordia open                open the best flip (/viewauction <uuid>)
+/discordia copy                copy the best flip's command to the clipboard
+/discordia margin 10%          minimum auction/snipe margin
+/discordia minprofit 500k      minimum auction/snipe profit
+/discordia status              show the active values and global-source health
+/discordia help                show the compact command list
+/discordia collector           show the automatic in-mod collector
+/discordia collector <url> [token]  optional external collector
+/discordia collector off       return to the local scanner
+/discordia globalfault 429     developer-only in-game Cofl failure injection
+/discordia globalfault off     return to the real Cofl source
+```
+
+Command responses use a compact colored `[Discordia]` layout: `OK` for accepted changes,
+`USAGE` for malformed input, `!` for warnings, and indented rows for status data. Amounts accept
+`K`, `M`, and `B` suffixes, decimals, and commas. Settings are saved in
+`config/discordia-config.json` and apply to the next scan. The purse is the only cost ceiling —
+there is no separate item cap to set, and a flip is limited only by whether you can afford it.
+Book-only auction flips keep their stricter 1M/8% safety floor even if the normal floor is lowered.
+
+## Keybind: hold to open the best flip
+
+Options → Controls → **Discordia** → *Open best flip (hold)*. It is bound to nothing by default, so
+it can never collide with a vanilla key.
+
+While it is held and no screen is open, the client runs `/viewauction <uuid>` for the
+highest-profit flip in the current list. A different best flip opens after 500ms; the same one
+repeats no faster than every 2s. Holding it with an auction window open does nothing at all —
+re-opening the window under your cursor is how a misclick happens.
+
+Like everything else here it only sends a command you could have typed: it never buys, bids or
+clicks.
+
+## How the scanning works
+
+The auction dump is expensive and the market only ticks about once a minute. Measured:
+
+| Endpoint | Size | Role |
+|---|---|---|
+| `/auctions?page=N` | **~2.4 MB per page**, 42 pages | the book |
+| `/auctions_ended` | **~68 KB** | heartbeat + realized sales |
+
+**Reading `/discordia status`:** `scan` is the last collector poll/push, while `tick` is the last
+Hypixel market update. The scanner polls every 3–5 seconds, but Hypixel publishes a new auction
+tick only about once a minute, so a healthy feed normally shows a small `scan` age and a larger
+`tick` age. A large `scan` age means the poll loop/connection is stalled; a large `tick` age alone
+is normal and does not mean the scanner stopped.
+
+`auctions_ended` carries the same `lastUpdated` as the auction dump (verified: both reported
+`1795507192072`), so it is a cheap "has the market moved?" probe. Page 0 is sorted newest-first
+(verified: page 0 start times run up to the current tick, page 41 is 20 minutes older), so every
+newly listed auction shows up there.
+
+So the loop is:
+
+1. Poll the 68 KB heartbeat every **5 s** (the embedded collector uses **3 s**). Also ingest its sales into the rolling stats.
+2. When `lastUpdated` moves, fetch **page 0 only** (~2.4 MB) and score those ~1,000 newest listings
+   against the cached book.
+3. In parallel, poll SkyCofl's fast newest-auction feed and score qualifying new BINs immediately.
+4. Rebuild the full book (~100 MB) only every **10 min**, to keep reference prices honest.
+
+That is roughly **800 MB/hour** at the defaults instead of ~6 GB/hour for a full dump every tick.
+It is the price of live data on a client; raise `fullRefreshMs` to trade freshness for bandwidth.
+A hosted collector shared by many players (the Cofl model) is the only way to make this cheap.
+
+### Fast auction lane
+
+The normal loop is limited by Hypixel's market tick, so it cannot see a listing until Hypixel
+publishes the next auction snapshot. While that is running, Discordia also watches
+[SkyCofl's newest-active-auction feed](https://sky.coflnet.com/data) about **once a second**. The
+feed is normally CDN-cached for five seconds, so the fast lane uses a cache-buster to read the
+current in-memory snapshot instead. SkyCofl shows new auctions within a few seconds, and its auction-detail route carries the NBT and enchantment data needed to rebuild the same variant keys as
+the normal book.
+
+For a new BIN the fast lane only fetches details when the tag is already in the cached book **and**
+the ask is at least **15%** and **400k** below the cheapest cached listing for that tag. That is the
+shape of an obvious undercut; the earlier rule (anywhere within 1.35× of the cheapest) queued 4.6
+candidates a second against a 0.67/s detail budget, so 85% aged out before they were ever resolved
+and the real ones waited behind them. Two drain threads work the backlog, and entries older than
+**20s** are dropped: a listing that has waited that long is usually already sold.
+
+The feed polls, auction-detail requests, and global-sales lookups share one Cofl rate budget
+(100/minute and 30/10 seconds: **60** feed, **25** detail, **15** global). Measured with
+`FeedCadenceProbe` against the live feed and a full 36k-listing book: **1.11 polls/s** (897 ms
+apart), 11 candidates in 35 s, every one resolved immediately. It then
+runs the same `FlipEngine`, price guards, global-sale checks, and filters as the normal scan. Fast
+results are merged for up to two minutes and normal page-0 results always win by auction UUID. If
+SkyCofl is unavailable, slow, rate-limited, or has an incomplete detail row, the normal scan
+continues and the fast lane retries instead of silently dropping the candidate.
+
+This lane uses SkyCofl's public API under its normal rate limits; it needs no account or API key.
+It is best-effort, not a guarantee that every new auction is seen before the next Hypixel tick. The
+normal page-0 scan remains the source of truth and will fill in anything the fast lane missed.
+
+### Collector mode
+
+The mod starts a collector **inside the game process** on a fresh install. It binds an ephemeral
+loopback port, starts the same heartbeat/page-0/full-book loop, computes flips server-side, and
+connects the client over WebSocket. There is no token, separate process, or setup step. The feed is
+local-only and the port is random, so other machines cannot connect to it.
+
+```text
+/discordia collector           show the automatic in-mod collector
+/discordia collector off       stop the embedded collector and resume the local scanner
+```
+
+The embedded collector is still useful for users who want a separate feed later, or for a shared
+private collector. The repository also includes a standalone collector under `../collector/`; it
+adds a token and a fixed port for that advanced case. The in-game client consumes the same protocol:
+
+```text
+/discordia collector ws://127.0.0.1:8787/ws <token>
+/discordia collector off
+```
+
+Build and run the standalone option with `collector/build.sh` and `collector/run.sh`; see
+`collector/README.md`. The client stops its local scanner while any collector is active and
+reconnects automatically.
+
+Collector filters are synchronized in both directions. When you change `/discordia margin`,
+`/discordia minprofit` or the purse (budget), the client sends the new values over the WebSocket. The collector recomputes from its last fetched book immediately, so
+lowering a filter can reveal additional flips; raising one removes them server-side too. The
+engine's book-only safety floor (8% and 1M) still applies. Ignore entries and the non-BIN
+show/hide switch remain display filters in the client.
+
+The collector still waits for Hypixel's ~60-second market tick; it removes duplicate polling and
+gives several clients one feed, not the upstream limit.
+
+### What this does and does not fix
+
+It removes timer drift: you no longer sleep a blind 60 s and miss a whole tick. You see new listings
+within ~5 s of the API publishing them.
+
+It does **not** make you faster than the API tick itself. Everyone polling the same endpoint sees the
+same listings at the same moment; the edge is in the filters, not in the polling. Anything faster
+means reading the in-game auction house UI, which is automation and against Hypixel's rules.
+
+## Build
+
+```bash
+./build.sh
+```
+
+First run downloads the 26.2 client jar, Fabric Loader, Gson and Minecraft's library set into
+`.tooling/` and `libs/` (gitignored). Output: `build/libs/discordia-1.3.0.jar`.
+
+Install: Fabric Loader 0.20.1+ profile for 26.2, drop the jar in `.minecraft/mods`. No Fabric API
+dependency.
+
+Minecraft 26.x ships **unobfuscated** and Mojang publishes no `client_mappings` for 26.2, so Loom
+cannot provision mappings (`Failed to find official mojang mappings for 26.2`). The build compiles
+directly against the client jar. That is why there is no `build.gradle`.
+
+## Run the engine without Minecraft
+
+```bash
+java -cp "build/classes;libs/gson.jar" dev.mmm.discordia.tools.FlipConsole --budget 50m
+```
+
+Flags (both `--flag value` and `--flag=value`):
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--budget` | `50m` | total coins you will deploy |
+| `--min-profit` | `400k` | minimum profit per flip, after tax |
+| `--margin` | `8` | minimum auction return, percent |
+| `--max-margin` | `60` | auction sanity cap |
+| `--confidence` | `0.35` | minimum price-confidence score |
+| `--limit` | `100` | results per market |
+| `--no-bazaar` / `--no-ah` | | skip a market |
+| `--fast` | off | newest page only, scored against the full book (mimics the in-game loop) |
+
+The console keeps its sale history in `build/discordia-sales.json`, so repeated runs accumulate volume.
+
+## Layout
+
+```
+src/main/java/dev/mmm/discordia/
+  core/            plain Java, no Minecraft imports
+    HypixelApi     public bazaar + auction endpoints, parallel page fetch
+    MarketSnapshot parsing, order-book sides, BIN grouping
+    Nbt            minimal NBT reader: item_bytes -> ExtraAttributes + lore
+    ItemVariant    reforge, stars, pet level and enchant signature keys
+    SoldStats      7-day realized-sale window, persisted
+    FlipEngine     filters and maths
+    Tax            bazaar tax, AH fee brackets, claim tax
+    FlipConfig     every tunable
+  tools/FlipConsole  run the engine without Minecraft
+  DiscordiaClient     entrypoint, key polling, chat output
+  MarketService    heartbeat scanner, full book every 10 min
+  CollectorClient  WebSocket client used by collector mode
+```
+
+The embedded collector reuses the standalone collector sources under `../collector/`; the mod build
+compiles those plain-Java classes into the jar, so there is no extra runtime dependency.
+
+## Auction snipes (non-BIN, ending soon)
+
+A separate list of normal auctions whose current bid is well under the BIN reference price. Non-BIN
+auctions are a different market: a live dump had **2,602** of them against 38,614 BIN listings, and
+they resolve on a timer instead of a fixed price, which is why they are not mixed into the BIN flips.
+
+For each non-BIN auction the mod reads `end`, `highest_bid_amount` (falling back to `starting_bid`
+when nobody has bid) and the same item variant signature used elsewhere. The reference is the BIN
+pool: exact variant first, then the enchant-stripped group, then name/tier — at least 3 comparables.
+That thin floor is deliberate: requiring the usual 8 would have excluded almost every auction item.
+
+Filters: ends in 45 seconds to 30 minutes, bid within the purse, at least **100k** profit after
+resale tax, at least **10%** margin scaled up with the bid, confidence ≥ 0.25. Results are sorted by **end
+time**, not profit, because the section is only useful if you can still bid. Each row shows a **max
+bid**: the highest bid that still leaves the minimum profit, so you never have to do the fee math
+while a timer runs.
+
+Live output:
+
+```
+Scythe Blade   LEGENDARY   5.49M -> 6.48M   +863.3k   16%   ends in 13m
+  /viewauction 1659cb4a3fbe47dea2942093bad01a54
+  ends in 13m, bid 5.49M vs 6.48M; max bid 6.25M
+```
+
+This section is **sparse by nature**: only 21 auctions ended within 10 minutes of that dump, and
+most had bids already near the reference. One hit passed the filters. Widening the window to 30
+minutes is what makes it useful without scraping the bottom of the book.
+
+The bid is not a purchase: another bidder can outbid you, and the max bid is a ceiling rather than a
+target. `J` opens the auction so you can bid yourself; nothing here bids for you.
+
+## Deterministic income
+
+A separate section for coins that do not depend on market timing.
+
+**Listings under the NPC price.** Prices come from
+`/v2/resources/skyblock/items` (`npc_sell_price`, 2,375 items with a positive value); the auction
+lore does not contain the NPC line, which is why the resources endpoint is used. A listing qualifies
+when `npc − price ≥ 5k` and the margin is at least 1%. Those thresholds are deliberately small:
+the largest gap in a live dump was **19.2k on an 800k item**, so a 100k floor would have hidden
+every opportunity. There are no fees on either side, but Hypixel's daily NPC sell cap applies, and
+prices assume one item per listing (stacks would make the gap larger, never smaller).
+
+**Forge conversions.** Recipes are bundled from the NotEnoughUpdates repo (`items/*.json`,
+`recipes[type=forge]`): inputs, output count and duration. At runtime the cost is built by **walking
+the bazaar ask book**: each input level contributes `price × available amount`, so 160 Enchanted
+Mithril is priced at what those 160 units actually cost, not at the top ask. The output is sold the
+same way through the bid book. If either side lacks enough depth, the recipe is skipped. Revenue is
+that fill minus 1.25% tax and `per day = profit × 86400 / duration`. Only recipes whose inputs *and*
+output are bazaar-traded are priced; anything else is skipped rather than guessed.
+
+Margins above **150%** are rejected (`maxForgeMarginPct`). A number that large usually means one
+lonely bid or one cheap level, not an edge. Bundled today: Refined Diamond/Mithril/Titanium,
+Bejeweled Handle, Golden Plate, Perfect Amber Gem, Drill Engine, Mithril and Titanium Drill Engines.
+
+Live output:
+
+```
+Perfect Chestplate - Tier I   RARE   800.0k -> 819.2k   19.2k   2%   NPC
+Golden Plate (forge)           -     1.59M -> 2.28M     687.7k  43%  2.75M/day
+Drill Engine (forge)           -     3.12M -> 4.26M     1.14M   36%  910.4k/day
+```
+
+Refined Mithril is now excluded: its 256% margin survived the depth walk (160 units really were
+available at 1,404 and the 809k bid was real), which is precisely the kind of number the cap exists
+for.
+
+`J` on a forge conversion does nothing useful (there is no command), so the mod tells you to open
+the forge instead.
+
+**Kat upgrades.** `kat.json` is generated from the official Hypixel SkyBlock Wiki's `Kat/Costs`
+table (fetched 2026-11-24): **209 upgrades across 61 pets**, each with a base coin cost, a duration
+and its material list. Material names are resolved to SkyBlock ids through
+`/v2/resources/skyblock/items`, so no names are hand-mapped. This is a verifiable source rather
+than a copied spreadsheet — the same table lists Armadillo's Legendary→Mythic upgrade that the
+SkyblockRepo pet JSON omits.
+
+Only **level-1** pets are evaluated. Kat's coin cost drops by 0.3% per level, and level 1 is the
+only level where the published base price is exact; a level-1 pet also stays level 1 because Kat
+preserves XP. Buy price is the median level-1 listing of the source rarity, sale price is the lower
+quartile of the level-1 target rarity after AH tax, and materials are priced at the live bazaar ask.
+Both pools need at least 2 listings and every material must be bazaar-traded; otherwise the upgrade
+is skipped. One pet can be at Kat at a time, so `per day = profit × 86400 / duration`; Kat Flowers
+and Bouquets can shorten the timer but cost coins and are not modelled.
+
+From a live book: 206 level-1 pet keys, 38 profitable upgrades. Examples: Pig Common→Uncommon at
+1.69M + 327k materials → +1.80M in 1 minute; Armadillo Legendary→Mythic at 13M + 1M + 8.28M
+materials → +4.85M in 1 hour. Short, thin upgrades rise to the top of the per-day ranking, which is
+why the detail line always shows the pool size (`max 2 listings`).
+
+## Variant keys
+
+A 5★ Heroic Hyperion with Ultimate Wise V is not the same item as a clean 3★ one, so listings are
+no longer pooled by name alone. Each listing is keyed by:
+
+| Part | Source |
+|---|---|
+| base item + tier | `item_name` + `tier` |
+| reforge | `ExtraAttributes.modifier`; recent sales use the exact reforge first, then a reforge stone in the same price band |
+| stars | `ExtraAttributes.upgrade_level` |
+| pet level | `[Lvl N]` in the display name (`petInfo` carries `exp`, not a level) |
+| pet tier | `petInfo.tier` — the **actual** rarity, not the auction's displayed one |
+| held pet item | `petInfo.heldItem` (for example `PET_ITEM_TIER_BOOST`) |
+| enchants | `ExtraAttributes.enchantments`, sorted, FNV-1a hashed |
+
+The reforge does matter, but its value is evidence-based. Recent sales are checked with the **exact
+reforge** first. Only when that reforge has no sales does the engine fall back to reforges whose
+stone cost is in the same band (Withered/Fabled are close; Lustrous/Gilded are not). The reforge word
+is stripped from the display name before pooling, so a Withered, Fabled or Spicy copy with the same
+stars and tier still caps the others — that is what killed the Shadow Fury false positive. The detail
+line says `(cheap reforge pooled)` when the pool is not a single reforge.
+
+**Recombobulator:** `rarity_upgrades` marks a recombed item. A **non-recombed** listing is capped by
+the cheapest recombed copy of the same item, stars and pet level, minus the live Recombobulator ask
+(about 10–11M). A recombed listing is not capped. This is why a non-recomb Atomsplit at 50.9M cannot
+be sold at 56M when a recombed copy exists at 58M — the recomb makes the non-recomb effectively a
+47M item, so the listing is rejected. The recombed Storm's Boots and Primordial Helmet are priced
+normally; the cap only applies to the non-recombed versions.
+
+**Wither Impact scrolls:** `ability_scroll` is parsed for Necron blades (`HYPERION`, `ASTRAEA`,
+`SCYLLA`, `VALKYRIE`). All three of `IMPLOSION_SCROLL`, `SHADOW_WARP_SCROLL` and
+`WITHER_SHIELD_SCROLL` mean **Wither Impact**. A blade missing scrolls is priced against full
+Wither Impact listings of the same item/stars/tier, minus the **instant bazaar cost** of every
+missing scroll; the bazaar depth must fill all of it in one purchase. If that arithmetic does not
+leave the normal profit/margin, the blade is skipped. Scrolls are currently about 509M for all
+three; a blade whose full copy is not worth more than the base plus those scrolls is never shown.
+
+Pools widen only when the data forces it, and each step costs confidence:
+
+| Pool | Key | Used when | Multiplier |
+|---|---|---|---|
+| exact variant | every part above | ≥ `minAuctionListings` listings | ×1.00 |
+| same variant, any enchants | drops the enchant hash | exact pool too thin | ×0.92 |
+| base item pool | name + tier | both too thin | ×0.80 |
+
+Each flip's detail records which pool priced it, for example
+`heroic, 5★, 26 ench [exact variant] next of 41 BINs`. On a live book of 20 auction flips, 15 priced
+from an exact pool and 5 from the enchant-agnostic group. Page 0 split 877 listings into 508 exact
+pools versus 496 base pools, so the extra dimensions are doing real work rather than collapsing.
+
+Pets need special handling: every pet's NBT id is `PET`, so the id comes from `petInfo.type` and the
+level from the display name. Rarity comes from `petInfo.tier`, **not** the auction's displayed
+tier: a held **Tier Boost** makes an Epic pet display as Legendary, and is priced as the Epic it
+actually is, with `PET_ITEM_TIER_BOOST` kept in the key. Pet pricing stays inside the **same level
+bucket**; a Lvl 1 copy is not allowed to cap a Lvl 100 pet, because the level is most of the value.
+
+**Skins, runes, and dyes:** unapplied skin items, **all runes**, and **all dyes** are dropped at parse time
+(`isExcludedCosmetic`: name contains `skin`/`rune`, the SkyBlock id contains `SKIN`/`RUNE`, or the
+ExtraAttributes carry a `runes` compound). An applied skin adds no value and does not change the
+variant key, so the item is priced exactly like the regular version; an item carrying an applied
+rune is dropped instead. Armor carrying an applied dye (`dye_item`) is dropped too, so a dyed
+chestplate cannot set or inflate the price of the undyed version. Dye sales are excluded from new
+sale statistics for the same reason.
+
+## Time to sell
+
+Hypixel gives no way to join a sold auction back to the listing it came from. That was verified
+against live data, not assumed:
+
+- `auctions_ended.auction_id` matched **0 of 168** active `uuid`s, even after normalising dashes;
+- matching on seller + price produced pairs with **different `item_bytes`** — coincidences, not the
+  same listing;
+- matching on NBT signature + seller + price hit 8 of 40 sales, only **2 unambiguously**, with
+  durations spread from 5 minutes to 14 hours.
+
+That is too noisy to put in front of a player, so time-to-sell comes from throughput instead
+(Little's law): **`(listings + 1) / sales per hour`**.
+
+- **Sales per hour** — realized BIN sales with the same variant signature, 24-hour window,
+  requiring at least 3 sales.
+- **Listings** — the active pool the flip was priced from (exact, group, or base).
+- Falls back to the base item's rate when the exact variant is too sparse, and reports nothing when
+  there are no recent sales at all.
+- Denominator is floored at 1 hour and capped at 24, so a fresh install cannot imply 60× the rate.
+
+Example from a seeded run: 41 listings competing, 6.0 sales/hour → `~7.0h`. The chat line appends
+`~7.0h`, the console has a `SELLS IN` column, and the detail reads
+`41 listed, 6.0 sales/h -> ~7.0h`.
+
+It is a market average, not a stopwatch on one listing: it counts overpriced listings that will
+never sell, which skews slow, and ended sales carry no rarity tier.
+
+## Attribute mispricing
+
+Variant keys say *what* differs; this says what the difference is worth. The rule is that an
+attribute is only worth something if this exact item has **realized sales carrying it**:
+
+| Input | Use |
+|---|---|
+| plain sales (0 stars, no reforge, pet 0, ≤2 enchants, no ultimate) | baseline, needs ≥5 |
+| sales with the same stars / reforge / pet level **and the ultimate** | comparable, needs **≥4** and **≥5% of the item's sales** |
+| bazaar book price (`ENCHANTMENT_<NAME>_<LEVEL>`) | hard ceiling on an ultimate's value |
+| sales per day for the item | liquidity discount: 1.0 / 0.75 / 0.5 / 0.25 |
+
+`premium = median(comparable) − median(plain)`, capped by book cost and scaled by liquidity.
+
+**The Aspect of the Jerry rule:** a Soul Eater V book dropped on an item nobody buys has no
+comparable sales, so the comparable set is empty and the valuation is discarded. Value is never
+transferred from a book price onto an item that has no market for it. A guard test seeds 10 plain
+sales and zero attribute sales — the valuation is `null` and nothing is surfaced.
+
+**The lucky-sales rule:** the comparable set is now only sales that actually carry the attribute
+(all of the variant's ultimates, plus the same stars/reforge/pet level), and it needs **more than
+three** of them *and* at least **5% of the item's total sales**. Three lucky sales, or four sales on
+an item that trades 200 times a week, no longer create a premium. A plain variant (no ultimate,
+stars, reforge or pet level) has no attribute to value at all and returns `null`.
+
+A listing becomes an attribute play when all of these hold:
+
+- its price is within 15% of the plain median;
+- the evidenced premium is at least 1M and at least 15% of the price;
+- it is within budget.
+
+The target becomes `min(comparable, plain + premium)`, the profit is recomputed, and the sanity cap
+widens from 60% to 150% **only when that comparable target is the one actually used**. A higher
+asking price never qualifies for the wider cap.
+Attribute plays need no book at all — if the pool is too thin they are priced from comparables alone
+and the detail says `[attribute comparables] no book`.
+
+They show up with a `★` in chat and a second `ATTR` line in the console:
+
+```
+ATTR plain 6.19M, similar 19.50M | 5★, ancient, 6 ench [attribute comparables] no book
+= 12.85M; 5.0 sells/day (n=10, median 6.19M); 5 listed, 0.4 sales/h -> ~14.4h
+```
+
+Limits: only ultimate enchants are valued individually (normal enchants are filler), pet level
+comparables use a ±15 level band, and everything is based on the 7-day sale window.
+
+## Why the filters look like this
+
+- **Bazaar:** Hypixel's `buy_summary` is the ask side and `sell_summary` is the bid side (they are
+  named from the opposite perspective, which is why `buyPrice` is always above `sellPrice`).
+  The engine takes the top of both books, applies the 1.25% tax, and requires a margin between
+  0.2% and 15%, 1,000+ units/day of two-sided volume, and ≥50k coins/hour using a 10% capture rate
+  capped by how many units your budget can hold.
+- **Auctions:** with **5+ sales of the exact reforge**, the target is 98% of the realized median,
+  capped by 99% of the next-cheapest BIN. If that reforge has no sales, sales from a reforge stone
+  in the same price band are used (Withered/Fabled, for example; never Lustrous vs cheap). With
+  **1–4 sales**, the target is the next listing, but only if it is not above
+  `maxThinAnchorOverSales` (1.0×) the realized median and the margin clears
+  `thinSalesMarginPct` (5%); a next listing many times the sale price is treated as manipulated.
+  The listing must be the cheapest, with at least two other listings within 10% of the anchor, at
+  least **one** comparable sale and ≥1 sale/day. Margins are capped at 60% (150% only when an
+  attribute comparator sets the target).
+- **Pets are included.** Rarity is the actual `petInfo.tier`, so a Tier Boosted Epic is never priced
+  as Legendary. Held items and pet level are part of the variant; comparisons stay in the same level
+  bucket. A Tier Boost is only bought when that actual-tier, tier-boosted pool supports the resale
+  price.
+- **Skins are never valued.** Unapplied skins are skipped entirely. Applied skins add nothing and
+  are priced as the plain item.
+- **Dyes are ignored.** Standalone dyes and armor with an applied dye are excluded from listings,
+  pools, and new sales evidence, so dye value can never inflate a normal armor flip.
+- Percentage margins normally require 8% (5% for a thin sample), but a **≥1M absolute profit**
+  bypasses both: a 2% return on a 380M pet is still 5.9M coins and worth taking when sales support it.
+
+A live book after these changes no longer contains the Withered Shadow Fury: cheap-reforge pooling
+made it compete with Fabled copies and it did not survive. The same book showed why the thin-sales
+guard matters: Pesthunter Artifact had a 7.82M next listing but a 1.10M median across four sales,
+so it was rejected rather than shown as +2.66M. The non-recomb Atomsplit was also rejected by the
+Recombobulator ceiling, while already-recombed blades are priced normally.
+
+**Plain-item weekly-median guard.** A plain item (no stars, reforge, pet level, ultimate, scroll,
+recomb or held pet item) must have a trusted Cofl weekly summary before a BIN flip is shown. It
+needs at least **8** weekly sales; the asking price may not exceed **1.15×** the weekly median on
+thin local evidence, or **1.25×** when at least **5** recent exact-variant sales support normal
+price fluctuation. The projected resale target is capped at **1.15×** the median. This still stops
+a 40M Gyrokinetic Wand with a roughly 25M weekly median and no thick local support.
+
+The cap was 1.40× until PORTALIZER on 2026-11-24: 53 weekly sales at a 6.2M median, then a pump
+put eleven sales above 11.6M and lifted every listing to ~8M. A 7M ask was announced as a flip
+because the exit was allowed to reach 8.7M — 40% over what the item had ever sold for. The weekly
+median is what the item actually sells for; 15% is drift, and anything past that is the pump
+talking. The guard
+applies to BIN flips universally for plain items and to non-BIN snipes whenever a weekly summary
+is available. It can hide a plain BIN while Cofl is still loading; that is safer than turning an
+unverified pumped book into a purchase recommendation.
+
+
+## Conservative exit, hold horizon, and why nothing was shown
+
+Three extra gates run before a BIN flip is announced. They exist because the recurring way a flip
+finder loses money is not a bad formula, it is arithmetic that quietly assumed the best case.
+
+**The ask is not the exit.** An accepted flip must still be profitable at a *conservative* exit:
+the lower of the target and, once there are at least **5** sales of the exact variant, their
+realized **p25**; then less a **1.5%** reserve for price drift, the second listing fee if it does
+not sell, and execution slippage. The chat line shows the ask you should list at, but the profit,
+the margin and every gate are computed at that floor, and the detail line ends with it:
+
+```text
+6 listed, 1.2 sales/h -> ~5.7h, 100% inside 3.0d (floor 10.62M after 1.5% reserve)
+PestHunter ... 13 listed, 4.0 sales/h -> ~3.5h, 98% inside 7.0d (floor 8.94M, p25 of 9 sales)
+```
+
+So a flip whose profit only exists at the optimistic ask is now suppressed instead of announced.
+`conservativeSalesQuantile` and `riskBufferPct` are the knobs; both default stricter than "off".
+
+**A slow flip is a capital trap.** Time to sell is `(listings + 1) / sales per hour` from realized
+sales. A candidate whose expected hold exceeds `maxHoldHours` (**168h**, 7 days) is refused, and a
+book-only flip — priced from listings with no same-variant sale behind it — gets a tighter
+`maxBookOnlyHoldHours` (**72h**). When the hold cannot be estimated at all, the margin requirement
+goes up by `unknownLiquidityMarginPremiumPct` (2%) instead of the item being treated as instant.
+
+**Expected value has to be positive.** `saleProbability` is a Poisson arrival,
+`1 - exp(-horizon / hold)`. Expected profit is `p × profit` minus the cost of *not* selling (one
+more listing fee plus a 10% markdown to force it) minus the cost of the coins being locked up
+(0.5%/day). A 4M headline on a 30-hour hold is fine; the same headline on a month-long hold is not.
+
+**A rare item can trade more often than it is listed.** The usual floor of **6** listings is
+lowered to **3** when the exact variant already has **5** realized sales — realized sales are
+stronger evidence than a thin book. Only the listing *count* moves: the unique-cheapest rule, the
+±10% support requirement, the spread cap and every ceiling above still apply, and the flips that
+qualify are labelled with the pool they were priced from.
+
+**Scrolls are capital, not a discount.** A partial Wither blade's missing scrolls are bazaar-priced
+before it is priced at all, and `buy price + scroll cost` must fit inside the purse. A 30M
+partial Hyperion needing 300M of scrolls is not an affordable flip even though the listing is.
+
+Non-BIN snipes take the same 1.5% reserve on their BIN reference, because a bid is not a purchase
+and the reference is not that auction's resale price.
+
+### `/discordia status`: the `why` row
+
+Every refusal increments a stable reason code, and the last scan's top four are shown:
+
+```text
+ why     1187 rejected  |  THIN_POOL 820, NO_SALES 190, MARGIN 96, CAPITAL_TRAP 22
+```
+
+An empty feed can now be told apart from a broken one. `THIN_POOL` and `NO_ANCHOR` mean the book is
+thin or nobody is undercutting anyone, `GLOBAL_PENDING` means Cofl has not answered yet,
+`GLOBAL_ZERO` means the market really does not trade the item, `CAPITAL_TRAP` means it trades too
+slowly to be worth the coins, and `SCROLL_UNAVAILABLE` means the bazaar cannot fill the scrolls.
+The console prints the same counts (`FlipConsole`), and `verify.sh` asserts them offline.
+
+| Code | Meaning |
+|---|---|
+| `NO_ANCHOR` | another copy is cheaper, this price is duplicated, or there is nothing to undercut |
+| `THIN_SUPPORT` | the pool around the resale anchor is too thin to be a market |
+| `THIN_POOL` / `WIDE_SPREAD` | too few listings to price from, or they disagree too much |
+| `NO_SALES` / `LOW_VOLUME` | no realized sale ever, or below the sells/day floor |
+| `GLOBAL_PENDING` / `GLOBAL_ZERO` | plain item: the weekly summary is unanswered, or too thin |
+| `BUY_ABOVE_GLOBAL` | the entry is above the weekly-median multiple |
+| `MANIPULATED_ANCHOR` | the next listing is many times the realized price |
+| `RECOMB_CEILING` / `NO_FULL_BLADE` / `SCROLL_UNAVAILABLE` | a component ceiling cannot be met |
+| `OVER_BUDGET` | price plus add-on cost exceeds the purse |
+| `MIN_PROFIT` / `MARGIN` / `IMPLAUSIBLE_MARGIN` | the conservative exit does not clear the gate |
+| `LOW_CONFIDENCE` | not enough agreeing evidence for the target |
+| `CAPITAL_TRAP` / `RISK_ADJUSTED` | the hold is too long, or expected value is not positive |
+
+## Why the feed went quiet after the first scan (fixed in 1.2.0)
+
+A live scan prices a listing against a cached book that does **not** contain it; a full scan prices
+it against one that does. The anchor rule required exactly one copy at the listing's price, and read
+"not the cheapest" as "no flip". In a live scan the candidate's own entry was missing, so its anchor
+came back as *"nobody is at this price, and there is no next listing"* for **every** underpriced
+listing — which is every listing that could ever be a flip.
+
+The symptom was exactly the reported one: the first full book produced a handful of flips, and then
+the page-0 and SkyCofl lanes were silent forever, because no candidate in either lane could clear
+the anchor. `NO_ANCHOR` counted every one of them, which blamed the market for a scanner bug.
+
+`resaleAnchor` now takes both sides — the cached pool and the prices this scan itself saw — and
+`candidateInPool` says whether the cached book already holds the auction. It returns 0 only when a
+competing copy really is cheaper or really does sit at the same price. The pool **count** behind the
+listing floor and the confidence score is corrected the same way, so a 6-listing book does not look
+like 5 listings to a live lane. Page 0 and a full scan now agree on the buy price and the target,
+and `AlgorithmGuardProbe` asserts that parity, plus two live copies at one price (both refused) and
+a live listing above the cached cheapest (refused).
+
+Two reason codes now separate the failures that used to share one: `NO_ANCHOR` means another copy
+beats this listing, and `NOT_CHEAPEST` means it is the only copy with nothing above it.
+
+## Latency: sub-second, without hammering the API
+
+The auction dump is republished on a tick, and every auction created in a tick lands on page 0.
+Both facts were measured, not assumed: the tick period is **60,000 ms** across consecutive
+transitions, and over one tick **130 of 130** new auctions were on page 0 (the full book was
+44,775 auctions over 45 pages). So a page-0 fetch is the whole new-listing feed, and a tick
+change is exactly the moment to fetch it.
+
+`MarketTicker` measures the tick period from the transitions it sees and predicts the next one.
+The scan thread polls the heartbeat hard (150 ms) for the ~1.2 s before the predicted boundary
+and ~2 s after it, and sleeps otherwise. That is what makes sub-second delivery affordable: a flat
+150 ms poll would be 172 KB × 6.7/s, and even a flat 2 s poll is about 300 MB an hour.
+
+Measured against the live API, end to end from tick detection to scored flips ready:
+
+| Step | Measured |
+|---|---|
+| heartbeat poll period (in the burst) | 150 ms |
+| page-0 request | 58–70 ms |
+| page-0 parse | 79–86 ms |
+| scoring | 11–18 ms |
+| **total, tick detected to chat-ready** | **148–167 ms** |
+| announcement | dispatched on the scan thread, no pulse wait |
+
+That is **under a second with room to spare**, sustained: measured over six consecutive ticks,
+with the measured period at 60.3 s and drift 0 ms. The announcement is dispatched to the client
+thread the moment a scan publishes; the 2 Hz pulse stays only as the purse refresh and as a
+safety net.
+
+Cost: about 13 heartbeat requests a minute, roughly 2.2 MB/min or ~130 MB/hour, instead of
+300 MB/hour for the flat 2 s poll. If a predicted tick has not arrived the window widens into a
+bounded hunt and the next transition re-measures the period, so a wrong prediction costs one late
+scan, never a dead feed. The first scan after joining still builds the full book (about 4.4 s),
+which is unavoidable.
+
+### What this does not fix
+
+Hypixel publishes no listing before its own tick, and everyone polling the same public endpoints
+sees a listing at the same instant. Sub-second delivery is not the same as being first: the ~150 ms
+here is your own pipeline, not an edge over other players.
+
+### Reading the auction-house UI instead (not implemented, on purpose)
+
+It is technically possible and it is worth being precise about why this mod does not do it.
+
+- **How it would work.** No screen reading or OCR is needed. When you open the auction house the
+  server sends the container contents, and a client-side mod can read the open menu's slots
+  directly, or read the `ClientboundContainerSetContentPacket` / `ClientboundContainerSetSlotPacket`
+  for it. Paging needs a click per page, so the data arrives only as fast as the server serves it.
+- **It would not scan everything.** The GUI shows 45 slots at a time, sorted by the GUI's own
+  order, not by recency. A 44,775-listing book is 995 GUI pages; at a plausible click rate that
+  is minutes per sweep, and Hypixel rate-limits the auction house on top of that. It is strictly
+  slower than the 148–167 ms page-0 path for the listings that matter.
+- **Detectability is the wrong question.** Hypixel's rules prohibit mods that automate gameplay or
+  give an unfair advantage, and reading auction data through the UI to get listings before other
+  players is exactly that. Whether Watchdog's heuristics happen to catch a given build does not
+  change the rule or the ban risk — "undetectable, so it's fine" is not a safe trade for an
+  account. It also breaks this mod's stated contract: `README.md` says it does not read the
+  in-game auction-house UI or packets, and that promise is the reason it is safe to install.
+
+If you want a faster feed than the public endpoints allow, the legitimate answer is more
+sources: the SkyCofl candle/active feed already in the fast lane, and the optional collector
+server, which polls once and shares the result with every client connected to it instead of each
+client polling separately.
+
+## Margin never rises with price
+
+There is no price-scaled hurdle. `minMarginPct` (8%) is the floor at 5M and at 500M, and above
+~250M the requirement **eases**: once `minAbsoluteMarginProfit` (**20M**) is enough on its own, the
+percentage falls out of the way, bottoming at `minMarginFloorPct` (**2%**). That means a 300M flip
+needs **6.7%**, not 25% — a 74M profit there is one of the best trades the scanner can find, and a
+20M profit is worth taking too.
+
+A 74M flip on a 300M listing used to look thin to a 25% hurdle. It is not thin: it is 74M.
+
+There is no item cap and no budget share. `maxCost()` returns the purse, which the in-game client
+re-reads from the scoreboard every pulse, so a 500M listing is judged on whether you can afford it
+and whether it clears the hurdle — not on an arbitrary fraction of a configured number.
+
+## Craft flips and replacement cost
+
+Recipes are bundled, not fetched. `tools/build-craft-data.mjs` extracts 2,002 crafting outputs, 523
+star-cost tables and 86 reforge stones from NotEnoughUpdates-REPO (MIT) into `recipes.json` and
+`upgrades.json`, which ship inside the jar. A scan needs no third-party service to know what an item
+is made of.
+
+Every ingredient is priced at the cheapest route that can be proven at scan time: bazaar instant buy
+walking the real ask book for the exact quantity, the NPC price, an auction LBIN (only when at least
+two copies are listed), or crafting it in turn, six levels deep. A recipe cycle resolves to unknown
+instead of looping, and **any unpriceable ingredient makes the whole floor unknown rather than
+optimistic**.
+
+Modifiers are priced too, because they are most of the cost of a good item:
+
+| Component | Source | Terminator example |
+|---|---|---|
+| Base craft | recipe tree | 350.1M |
+| 5 dungeon stars | 1,850 Dragon essence @ bazaar | 7.6M |
+| 5 master stars | bazaar, one per level | 210.3M |
+| Recombobulator | bazaar | 9.6M |
+| Precise reforge | Optical Lens + 100k | 0.6M |
+| **Replacement cost** | | **577.6M** |
+
+That item resold for 753M, so the floor is a genuine lower bound rather than a wish. Enchantments
+are deliberately not modelled — merging books is a separate cost problem, and omitting them can
+only understate the floor, which is the safe direction.
+
+Two lanes use the number:
+
+1. **`CRAFT` flips** — buy the ingredients, craft, sell. The ingredient bill is exact; the exit is
+the usual conservative floor (weekly median, realized p25 once five sales exist, then the 1.5%
+reserve). No weekly evidence means no flip, however cheap the inputs are.
+2. **Replacement-cost ceiling on auctions** — a listing's target is capped at the craft floor plus
+`maxCraftPremiumPct` (25%), and the detail line shows `(craft floor cap ...)`. A book claiming a
+900M resale on something craftable for 300M is describing an exit that does not exist.
+
+Limits worth knowing: auction-LBIN ingredients use the cheapest copy, so a recipe needing dozens of
+an AH-only item is optimistic (bazaar ingredients are exact, because the fill walks the book);
+reforges with no known stone fail closed; and collection or slayer requirements are not checked, so
+a recipe you cannot unlock will still be priced.
+
+## Sale statistics
+
+There are two layers:
+
+1. **Global item volume** comes from SkyCofl's public 7-day price analysis. This is a market-wide
+   summary, so a sale that happened while Minecraft was closed still counts. It supplies sells/day
+   and the median (used as the conservative p25 fallback where the summary has no quartile), and it
+   prevents "not observed locally" from looking like zero demand. Active auction ids with no local
+   sale rows are queued first, then other active listings, then the complete catalog; requests are
+   serialized at about one per second and cached in `.minecraft/config/discordia-global-sales.json`.
+   Coflnet is the source of these global summaries; the client is not affiliated with Coflnet.
+   While a queued item has no answer yet, its stats are **pending**, not zero. A pending book-only
+   flip is labeled `[pending]`; it is not promoted to verified sale evidence. A timeout, HTTP 429,
+   server error, or malformed/missing-contract response leaves the item pending and retries it
+   with exponential backoff (30 seconds up to 30 minutes in production; the test harness can shorten
+   this, and honors `Retry-After`); it never clears the item to zero. A permanent item-level 4xx is
+   labeled `[unavailable]` instead, which is also unresolved rather than zero demand. Unavailable
+   markers expire after 24 hours so a corrected tag can recover, and an active listing's authoritative
+   tag (for example `PET_LION`) corrects a stale raw catalog request instead of inheriting its 4xx.
+   Unresolved book-only flips can still be surfaced, but they never count as verified sale evidence;
+   chat and console rows mark them `[pending]` or `[unavailable]`, and `/discordia status` reports
+   how many flips are unresolved.
+   Retry deadlines, attempt counts, retry tags, and unavailable deadlines persist in the cache;
+   restarting during an outage resumes the same backoff instead of re-queuing the whole catalog.
+   The cache is written through a temporary file and atomically moved, and per-item cache expiry
+   is jittered by up to an hour so refreshes do not all stampede together. `/discordia status`
+   includes the last HTTP/network failure, retry count, next retry, and unavailable count.
+   For runtime verification, `/discordia globalfault 429|timeout|500|malformed|404` simulates the
+   Cofl failure in-game; `/discordia globalfault off` restores the real source. The fault mode is
+   session-only and never persisted.
+   If Cofl reports a valid zero but local `/auctions_ended` rows exist, the local observed sales
+   win; only a genuine zero from both sources suppresses a book-only flip.
+2. **Exact variant evidence** still comes from the local `/auctions_ended` stream. `Nbt` decodes
+   `tag.ExtraAttributes.id` (searching for it wherever Hypixel nests it), which gives the SkyBlock
+   id of each sold item. These rows carry stars, reforge, pet level, held item, scrolls, and
+   recombobulation, so they are what the exact-variant and attribute pricing uses.
+
+The local 7-day window has these properties:
+
+- **sells/day** — `count / observed days`, where observed days is the time since the store was
+  created, floored at 1 day and capped at 7 (the window length). A minute of data can never imply
+  a daily rate, and a week-old install never divides by more than the window;
+- **median and p25 sold price** — what it actually cleared at, not what people are asking;
+- **volume gate** — `minAuctionSalesPerDay` (default 1), applied only after 5 observed sales, so a
+  fresh install is not blinded by missing data;
+- **per-variant rates** — timestamped sales per variant signature over 24 hours, which drive the
+  time-to-sell estimate.
+
+Local rows persist to `.minecraft/config/discordia-sales.json`, and the same tick is never counted
+twice (de-duplicated by auction id, because the heartbeat repeats it every 5 s). Timestamps use the
+ended auction's real `timestamp`, not the moment the client noticed it.
+
+## Known limits (read this)
+
+1. **Time-to-sell is a throughput estimate**, not an observed per-listing measurement, because the
+   API exposes no join key between a sale and its listing. It also ignores rarity tier (ended sales
+   carry none).
+2. **Sale volume stats are keyed by base item id** (pets by pet type), so variants share one volume
+   pool. Pricing and sale *rates* are variant-aware; the sells/day figure is not.
+3. **Thin exact pools fall back to wider ones.** The detail says which pool was used; a base-pool
+   price on a highly enchanted item is a weaker signal, which is why it carries a 0.8 multiplier.
+4. **Reference prices can be stale** for up to `fullRefreshMs` (10 min) between full dumps.
+5. **No craft flips.** Craft-cost arbitrage needs the recipe tree.
+6. **Key polling is global.** `K`/`J`/`C` also fire while a chat screen is open.
+7. **Collector filters are synchronized.** The client sends margin, profit, item-cap, and budget
+   changes to the collector, which recomputes immediately; lowering a client filter can reveal
+   flips from the last fetched book. Ignore entries and the non-BIN show/hide switch are still
+   client-side display filters. Book-only flips keep their 8%/1M safety floor.
+8. **Plain BINs need Cofl price confirmation.** When the weekly summary is pending, unavailable,
+   or has fewer than 8 sales, plain BIN flips stay hidden. This reduces the chance of buying a
+   pumped listing, at the cost of a short startup gap and some sparse-item coverage.
+9. **The conservative floor hides marginal flips on purpose.** Booking profit at the p25 rather
+   than the median, and reserving 1.5%, turns many 1-2% edges into non-flips. That is the trade:
+   the alert is what survives a worse-than-median exit, not what a perfect exit would have paid.
+10. **The hold horizon is a gate, not a suggestion.** An item that clears a large profit but is
+    estimated to sit listed longer than 7 days (3 days for book-only) is now suppressed with
+    `CAPITAL_TRAP`, even though its profit number would have looked good. Lower
+    `maxHoldHours` / `maxBookOnlyHoldHours` for a stricter, faster-turnover feed; set them to 0 to
+    disable the gate (not recommended).
+
+
+Roadmap in order: variant-level sale volume → craft flips. Global item volume is now supplied by
+the SkyCofl summary cache; local exact-variant history remains the second layer.
+
+## What was verified
+
+- Offline global-gate probe:
+  `java -cp "build/classes;libs/gson.jar" dev.mmm.discordia.tools.GlobalGateProbe`
+  proves a 206-sale global summary clears the zero-sale gate for a no-local-sale six-listing
+  Titanium book, while an explicit zero global summary leaves the identical book suppressed; a
+  synthetic local sale plus a global zero confirms that observed local evidence wins.
+- Offline global failure matrix:
+  `java -cp "build/classes;libs/gson.jar" dev.mmm.discordia.tools.GlobalFailureProbe`
+  covers 429 with and without `Retry-After`, timeout, 5xx, malformed JSON, missing contract
+  fields, explicit zero, permanent 4xx, cache reload, persisted retry/unavailable state, the
+  in-game fault switch, and stale-tag correction (`ALIAS_RING -> PET_ALIAS_RING`). No request
+  leaves loopback.
+- Contract/alias probe:
+  `java -cp "build/classes;libs/gson.jar" dev.mmm.discordia.tools.CoflContractProbe`
+  checks `LION -> PET_LION` and identity tags offline; add `--live` for two deliberately spaced
+  public contract requests. This validates the `totalSales`, `medianPrice`, and `salesPerDay`
+  fields the client now requires, rather than silently accepting a schema break. The live check
+  on 2026-11-24 returned HTTP 200 for `TITANIUM_RING` (199 sales, median 7,999,999, 28.429/day)
+  and `PET_LION` (1,867 sales at the second check, median 24,000,000, 266.714/day).
+- Lane-parity probe (2026-11-24, live): with a 36,000-listing book, three consecutive page-0
+  scans produced **0 flips before the fix** — the anchor rejected 100% of underpriced listings
+  because the candidate was absent from the cached pool it was priced against — and a real flip
+  after it (Royal Titanium Cloak 5.00M -> 5.74M). A live scan and a full scan now produce
+  identical buy prices and targets for the same listing.
+- Full reproducible check: `./verify.sh` runs the build and all four offline probes.
+- Algorithm guard probe (2026-11-24):
+  `java -cp "build/classes;libs/gson.jar" dev.mmm.discordia.tools.AlgorithmGuardProbe`
+  asserts 59 decisions offline. Listing fee exact at 9.99M/10M/10.01M/100M/100.01M including the
+  documented bracket cliff; claim tax zero at 1M, clamped to `sale - 1M` just above it, 1% above
+  that; a 5k bid on a non-BIN auction is kept as a bid and never becomes a buy price while a BIN
+  purchase price is read from `starting_bid` and not from `highest_bid_amount`; Little's law
+  (`41 listings, 6 sales/h -> 7h`) and the Poisson sale probability; six copies at one price
+  produce 6 x `NO_ANCHOR`; five dearer copies of a cheaper listing produce 5 x `NO_ANCHOR` while
+  the cheapest is priced; a lonely 40M next listing with nothing within 10% produces
+  `THIN_SUPPORT`; four 5M sales under a 40M ask produce `MANIPULATED_ANCHOR`; a thick sample of
+  five sales prices a 19.6M ask at a **4.15M floor-booked profit against 5.01M at the ask**; a
+  four-sale weekly summary produces `GLOBAL_ZERO`, an unanswered one `GLOBAL_PENDING`, and a
+  400-sale summary prices the same book; a 50M non-recomb listing against a 58M recombed copy
+  with a 10.2M recombobulator is refused while the same book without a recombed copy is priced;
+  a partial blade is capped at 33.41M by the full-blade exit after 6M of scrolls, an empty scroll
+  book gives `SCROLL_UNAVAILABLE`, and 30M + 6M scrolls over a 34M cap gives `OVER_BUDGET`; a
+  three-listing book backed by five realized sales is priced while the same book without sales
+  gives `THIN_POOL`; and two sales a month over a six-listing pool gives `CAPITAL_TRAP`.
+- Build on this machine: `ahflip/build.sh` produced `build/libs/discordia-1.3.0.jar` against the
+  real 26.2 client jar, and `collector/build.sh` produced `collector/build/classes`.
+  `GlobalGateProbe`, `GlobalFailureProbe` and `CoflContractProbe` all still pass, and `./verify.sh`
+  (all four probes) exits 0. The build script now falls back to `python3` when `node` is absent,
+  and the four shell scripts are committed executable, so `./build.sh` and `./verify.sh` run as
+  documented instead of failing with "Permission denied".
+- Pumped-book guard: a synthetic plain Gyrokinetic-like book with a 40M entry, a 45.77M next ask
+  and a 25M weekly median is rejected, while the same book is accepted when the synthetic weekly
+  median is 50M. A separate thick-evidence control with five recent 40M sales allows a 30M entry
+  against the same 25M weekly median. The existing global-gate Titanium control still passes.
+- The engine runs against the live API: 38k+ auctions in ~2-3 s, filtered results for both markets.
+- The NBT reader parsed **65 of 65** BIN sales from a live `auctions_ended` window.
+- Variant keys were checked against live listings: a Heroic 5★ Hyperion with 26 enchants keyed as
+  `heroic hyperion|MYTHIC|heroic|5|0|b5cf8c267609fa89`, and engine output showed 15 exact-pool and
+  5 group-pool flips out of 20.
+- Time-to-sell: a seeded 6.0 sales/hour rate over a 41-listing pool produced `420 min (7.0h)`, and
+  the rate maths was checked against a synthetic 12-sales-in-2-hours store (exactly 6.00/h).
+- Attribute pricing: a listing at 6.5M against plain sales of 6.19M and comparable sales of 19.5M
+  surfaced at a 12.85M target (92% margin), including through a thin book; the same setup with zero
+  attribute sales produced a null valuation and no play, which is the Aspect of the Jerry guard.
+- Attribute guard: seeded stores asserted a 6-of-100 attribute share prices at a 4.0M premium
+  (6 samples), while 3 attribute sales and a 4-of-204 (1.96%) share both returned `null`; a plain
+  variant also returned `null`, and the margin-cap rule resolved to 60% for a pool target versus
+  150% for a comparable target.
+- Auction snipes: a live book had 2,602 non-BIN auctions (21 ending in under 10 minutes, 89 under an
+  hour); with a 30-minute window and 3-comparable floor, one passed — Scythe Blade at 5.49M against
+  a 6.48M reference, 863k profit, 16% margin. The low count is the data, not a parse failure.
+- Deterministic income: `npc_sell_price` covered 2,375 items and a live dump had 17 listings below
+  NPC; the forge table loaded from the packaged resource (after fixing resources not being on the
+  runtime classpath). After order-book depth and the 150% cap, 3 recipes passed, led by Golden Plate
+  at 687.7k per 6h (43%) and Drill Engine at 1.14M per 30h (36%); Refined Mithril was rejected.
+- Forge depth: a synthetic book asserted `buy(10)` across two ask levels costs exactly 130,
+  `sell(2)` across two bid levels fetches 19, and a fill larger than the book reports incomplete.
+  On the live book, 160 Enchanted Mithril filled completely for 224,688 and one Refined Mithril bid
+  paid 809,091 — a 256% raw margin, excluded by the cap rather than mispriced by depth.
+- Auction recalculation: the previously recommended Lv1 Legendary Ender Dragon carried a Tier Boost
+  (displayed Legendary, actually Epic), and is now keyed and priced as Epic with the held item. The
+  Withered Shadow Fury false positive was fixed by reforge-band pooling: a Withered and a Fabled
+  copy with the same stars/tier now produce the same group key, and the Shadow Fury no longer
+  appears as a flip. The non-recomb Fabled Atomsplit at 50.9M is rejected because the cheapest
+  recombed copy is 58M and the Recombobulator ask is about 10.2M, giving a 47.2M ceiling; the
+  already-recombed Storm's Boots and Ancient Primordial Helmet are not capped. Pesthunter Artifact
+  (7.82M anchor vs 1.10M median), Dolphin (11.88M vs 2.50M) and Combat Exp Boost (4.55M vs 2.00M)
+  were rejected by the thin-sales manipulation guard. No skins, runes or dyes appeared in the output.
+- Wither Impact parsing: 70 Necron blades were inspected and 27 were full Wither Impact; the three
+  scrolls cost 509.1M from the bazaar at the time of the check. A partial blade is only considered
+  when the full listing minus that instant scroll cost clears the normal filters.
+- Kat: the generated table loaded all 209 rows from the jar; a live book had 206 level-1 pet keys
+  and 38 profitable upgrades (Armadillo Legendary→Mythic +4.85M, Flying Fish +7.16M, Hermit Crab
+  +9.73M), with the `[Lvl 1]` lookup fixed after the first run matched zero keys because base keys
+  are lowercased.
+- The heartbeat and the auction dump reported the same `lastUpdated` across three polls, and page 0
+  was confirmed newest-first against the last page.
+- The embedded collector probe accepted a tokenless loopback WebSocket, sent restrictive then broad
+  filters, and observed the snapshot change from 12 BIN to 0 and back to 12 (the next market tick
+  then produced 2); the Java `CollectorClient` also connected with no token and sent the same filter
+  control frames successfully.
+- The standalone collector still rejects unauthenticated `/health` with 401 and accepts the bearer
+  token with 200.
+- The mod jar compiles against the real 26.2 client jar and packages with valid metadata.
+- **Not verified:** launching it in a Fabric client. That needs a real 26.2 instance.

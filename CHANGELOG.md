@@ -1,5 +1,54 @@
 # Changelog
 
+## 1.7.0 — 2026-11-24
+
+### The fast lane stops queueing junk and polls twice as often
+
+The old fast lane polled every **2 s** and accepted any new BIN within 1.35× of its tag's cheapest
+cached listing — 4.6 candidates a second. Detail lookups are capped at 0.67/s, so ~85% of those
+candidates aged out of the queue unresolved, and a real undercut waited behind six or seven dead
+ones. That is the delay that loses a flip, not the network.
+
+What changed:
+
+- the pre-filter now demands a real undercut: at least **15%** **and** **400k** below the tag's
+  cheapest cached copy, which is the shape of a flip rather than "near the market";
+- entries older than **20 s** are dropped and the backlog is capped at 200, so the budget is never
+  spent on listings that are already gone;
+- the budget is rebalanced to 60 feed / 25 detail / 15 global per minute, which lets the feed run at
+  ~1/s while details stay idle for the rare candidate that needs one;
+- two drain threads instead of one, so a second candidate never waits out the first one's RTT.
+
+Measured with the new `FeedCadenceProbe` against the live feed and a full 36k-listing book:
+
+| | before | after |
+| --- | --- | --- |
+| feed polls | 0.5/s (2 s) | **1.11/s (897 ms)** |
+| candidate demand | 4.6/s | **0.31/s** |
+| detail backlog | grows ~7:1 | **none — every candidate resolved** |
+
+So a new obvious undercut is seen in under a second and resolved in ~180 ms, instead of waiting
+behind a queue that could never drain.
+
+### Things I checked that do not help
+
+- Cofl's public socket (`wss://sky.coflnet.com/skyblock`) answers `newAuctions` in ~150 ms, but it
+  is a cached batch — 39 requests over 20 s returned the same 50 items once. It cannot replace
+  polling.
+- `subFlip` / `subFlipAnonym` return an error or empty frames without an account; there is no
+  anonymous flip stream.
+- `/api/auctions/batch` needs a secret token, and `/api/auctions/active/uuid` only reports whether
+  uuids are still active. There is no public bulk detail endpoint, so details remain one request
+  per candidate.
+
+The lane is still best-effort and still public-API only: no account, no key, no scraping of the
+game. The 60-second full scan remains the source of truth and catches everything the pre-filter
+deliberately skips (for example a starred variant priced above a clean copy's cheapest listing).
+
+Regression: `./verify.sh` exits 0 with 96 checks. `FeedCadenceProbe` is the measurement tool:
+`java -Ddiscordia.probe.fullBook=true -cp "build/classes;libs/gson.jar" dev.mmm.discordia.tools.FeedCadenceProbe`.
+
+
 ## 1.6.1 — 2026-11-24
 
 ### A pumped book can no longer invent an exit 40% above the weekly median

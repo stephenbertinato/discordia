@@ -43,9 +43,24 @@ public final class FastAuctionFeed {
     private static final String FEED_URL = "https://sky.coflnet.com/api/auctions/active/filter"
             + "?page=0&pageSize=100&orderBy=NEWEST";
     private static final String DETAIL_URL = "https://sky.coflnet.com/api/auction/";
-    private static final long POLL_MS = 2_000L;
-    private static final double MAX_PRICE_RATIO = 1.35d;
+    /**
+     * The loop wants a sub-second cadence; {@link CoflRateLimiter#acquireFast()} is what actually
+     * paces it to the published budget (55/min), so this is a floor, not a promise.
+     */
+    private static final long POLL_MS = 500L;
+    /**
+     * A candidate must undercut the cheapest existing copy of its tag by a real margin, not just
+     * sit near it. At 1.35 the lane queued 4.6 candidates a second against a 0.67/s detail budget,
+     * so most were dropped stale and the live ones waited behind junk.
+     */
+    private static final double MAX_PRICE_RATIO = 0.95d;
+    /** Below this absolute gap there is no flip to resolve, whatever the percentage says. */
+    private static final double MIN_EDGE = 400_000d;
     private static final int MAX_SEEN = 4_000;
+    /** Beyond this a candidate is almost certainly sold; resolving it only delays live ones. */
+    private static final long STALE_MS = 20_000L;
+    /** Bounded backlog: the limiter, not the queue, should be the thing that throttles. */
+    private static final int MAX_QUEUE = 200;
     private static final Gson GSON = new Gson();
 
     private record Candidate(String uuid, String tag, String tier, double price, double ratio,
@@ -57,10 +72,12 @@ public final class FastAuctionFeed {
 
     private static final class Pending {
         private final Candidate candidate;
+        private final long at;
         private int attempts;
 
         private Pending(Candidate candidate) {
             this.candidate = candidate;
+            this.at = System.currentTimeMillis();
         }
     }
 
@@ -73,12 +90,21 @@ public final class FastAuctionFeed {
             pending -> pending.candidate.ratio()));
     private final Set<String> queued = ConcurrentHashMap.newKeySet();
 
+    /** Measurement counters: polls actually issued and details successfully resolved. */
+    private final java.util.concurrent.atomic.AtomicLong polls =
+            new java.util.concurrent.atomic.AtomicLong();
+    private final java.util.concurrent.atomic.AtomicLong details =
+            new java.util.concurrent.atomic.AtomicLong();
+    private final java.util.concurrent.atomic.AtomicLong enqueued =
+            new java.util.concurrent.atomic.AtomicLong();
+
     private volatile boolean running;
     private volatile String status = "off";
     private volatile long lastListingAt;
     private volatile Map<String, TagBook> tagBooks = Map.of();
     private Thread pollThread;
     private Thread drainThread;
+    private Thread drainThread2;
     private volatile ScheduledExecutorService retryScheduler;
     private volatile long generation;
     private MarketSnapshot indexedReference;
@@ -104,9 +130,14 @@ public final class FastAuctionFeed {
         pollThread = new Thread(this::pollLoop, "discordia-fast-auctions");
         pollThread.setDaemon(true);
         pollThread.start();
+        // Two drain threads, not one: a second candidate must not wait out the first one's round
+        // trip. The shared limiter still paces the total, so this only removes head-of-line delay.
         drainThread = new Thread(this::drainLoop, "discordia-fast-details");
         drainThread.setDaemon(true);
         drainThread.start();
+        drainThread2 = new Thread(this::drainLoop, "discordia-fast-details-2");
+        drainThread2.setDaemon(true);
+        drainThread2.start();
     }
 
     public synchronized void stop() {
@@ -119,13 +150,18 @@ public final class FastAuctionFeed {
         }
         Thread poll = pollThread;
         Thread drain = drainThread;
+        Thread drain2 = drainThread2;
         pollThread = null;
         drainThread = null;
+        drainThread2 = null;
         if (poll != null) {
             poll.interrupt();
         }
         if (drain != null) {
             drain.interrupt();
+        }
+        if (drain2 != null) {
+            drain2.interrupt();
         }
         synchronized (queueLock) {
             queue.clear();
@@ -143,6 +179,21 @@ public final class FastAuctionFeed {
         return lastListingAt;
     }
 
+    /** Feed polls actually issued since start; the limiter, not the loop, sets the pace. */
+    public long pollCount() {
+        return polls.get();
+    }
+
+    /** Candidates resolved through the detail endpoint since start. */
+    public long detailCount() {
+        return details.get();
+    }
+
+    /** Candidates that survived the price pre-filter and entered the detail queue. */
+    public long enqueuedCount() {
+        return enqueued.get();
+    }
+
     private void pollLoop() {
         long nextPoll = 0L;
         while (running && !Thread.currentThread().isInterrupted()) {
@@ -152,7 +203,7 @@ public final class FastAuctionFeed {
                     poll();
                     nextPoll = now + POLL_MS;
                 }
-                Thread.sleep(250L);
+                Thread.sleep(100L);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 return;
@@ -182,6 +233,7 @@ public final class FastAuctionFeed {
         // The public endpoint is CDN-cached with max-age=5. A cache-buster gives us the current
         // in-memory snapshot instead of waiting for that cache window.
         CoflRateLimiter.acquireFast();
+        polls.incrementAndGet();
         JsonObject feed = HypixelApi.getJson(FEED_URL + "&_=" + System.currentTimeMillis());
         JsonArray items = feed.getAsJsonArray("items");
         if (items == null) {
@@ -205,7 +257,8 @@ public final class FastAuctionFeed {
                 continue;
             }
             double price = number(item, "startingBid", 0d);
-            if (price <= 0d || price > tagBook.lowest() * MAX_PRICE_RATIO) {
+            double edge = tagBook.lowest() - price;
+            if (price <= 0d || price > tagBook.lowest() * MAX_PRICE_RATIO || edge < MIN_EDGE) {
                 remember(uuid);
                 continue;
             }
@@ -244,6 +297,7 @@ public final class FastAuctionFeed {
                         tagBooks.get(pending.candidate.tag()));
                 if (listing != null && listing.uuid().equalsIgnoreCase(pending.candidate.uuid())) {
                     lastListingAt = System.currentTimeMillis();
+                    details.incrementAndGet();
                     sink.accept(listing);
                     complete(pending);
                 } else {
@@ -263,20 +317,43 @@ public final class FastAuctionFeed {
             if (!running || seen.contains(candidate.uuid()) || !queued.add(candidate.uuid())) {
                 return;
             }
+            if (queue.size() >= MAX_QUEUE) {
+                queued.remove(candidate.uuid());
+                remember(candidate.uuid());
+                return;
+            }
             queue.add(new Pending(candidate));
+            enqueued.incrementAndGet();
             queueLock.notifyAll();
         }
     }
 
+    /**
+     * Takes the next candidate, discarding ones that have been waiting too long. A listing that
+     * has sat in the queue for longer than a few seconds is usually already sold, and spending the
+     * shared budget resolving it is what makes the live ones late.
+     */
     private Pending take() throws InterruptedException {
         synchronized (queueLock) {
-            while (running && queue.isEmpty()) {
-                queueLock.wait();
+            while (running) {
+                long now = System.currentTimeMillis();
+                Pending next = null;
+                while (!queue.isEmpty()) {
+                    Pending head = queue.poll();
+                    if (now - head.at > STALE_MS) {
+                        queued.remove(head.candidate.uuid());
+                        continue;
+                    }
+                    next = head;
+                    break;
+                }
+                if (next != null) {
+                    return next;
+                }
+                // Timed wait so a queue full of stale entries is emptied even with no new arrivals.
+                queueLock.wait(250L);
             }
-            if (!running) {
-                return null;
-            }
-            return queue.poll();
+            return null;
         }
     }
 
