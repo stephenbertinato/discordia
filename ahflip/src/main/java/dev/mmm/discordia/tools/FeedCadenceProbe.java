@@ -38,10 +38,23 @@ public final class FeedCadenceProbe {
 
         FastAuctionFeed feed = new FastAuctionFeed(() -> reference, listing ->
                 System.out.printf("  candidate %s %s @ %,.0f%n",
-                        listing.skyblockId(), listing.uuid(), listing.price()));
+                        listing.skyblockId(), listing.uuid(), listing.price()), config);
         long started = System.currentTimeMillis();
         feed.start();
-        Thread.sleep(RUN_MS);
+        long lastReport = 0L;
+        while (true) {
+            Thread.sleep(1_000L);
+            long elapsedMs = System.currentTimeMillis() - started;
+            if (elapsedMs >= RUN_MS) {
+                break;
+            }
+            if (elapsedMs - lastReport >= 30_000L) {
+                lastReport = elapsedMs;
+                System.out.printf("[t=%ds] polls=%d enqueued=%d details=%d%n",
+                        elapsedMs / 1000L, feed.pollCount(), feed.enqueuedCount(),
+                        feed.detailCount());
+            }
+        }
         feed.stop();
         long elapsed = System.currentTimeMillis() - started;
 

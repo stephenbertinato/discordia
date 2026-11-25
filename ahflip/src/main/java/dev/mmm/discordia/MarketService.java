@@ -121,7 +121,7 @@ public final class MarketService {
         if (!config.fastAuctions || fastFeed != null) {
             return;
         }
-        fastFeed = new FastAuctionFeed(() -> reference, this::onFastListing);
+        fastFeed = new FastAuctionFeed(() -> reference, this::onFastListing, config);
         fastFeed.start();
     }
 

@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.7.1 — 2026-11-24
+
+### The fast lane's undercut limit follows your settings
+
+The `15%` and `400k` constants are gone. For each tag the lane takes the cheapest cached listing as
+the conservative exit, applies AH fees, and accepts a candidate only if selling there would still
+clear both floors:
+
+```
+exit      = Tax.ahNet(cheapestListing)
+maxAsk    = min(exit - minProfit, exit / (1 + minMarginPct / 100))
+```
+
+So `/discordia margin` and `/discordia minprofit` now tighten or widen the fast lane the moment they
+are changed, and the lane can never chase a listing that would fail the engine's own floors. The
+limits are computed per tag, so a cheap item is not held to a percentage that its profit floor would
+already dominate.
+
+Measured on a full 36k-listing book, 60 s: **60 polls (1.00/s)**, 2 candidates, 2 details resolved,
+no backlog. That is well inside the 25/min detail budget.
+
+#### Why there is no "instant" source
+
+Hypixel's public auction dump was measured changing every **~60 s** (two updates 5 s apart at a
+boundary, then 62 s of silence). SkyCofl's feed is the fastest public view of a listing and is what
+this lane already uses. Anything faster means scanning the auction house in game with real accounts
+or reading game packets, which this project does not do.
+
+
 ## 1.7.0 — 2026-11-24
 
 ### The fast lane stops queueing junk and polls twice as often

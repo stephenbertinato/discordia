@@ -133,11 +133,14 @@ feed is normally CDN-cached for five seconds, so the fast lane uses a cache-bust
 current in-memory snapshot instead. SkyCofl shows new auctions within a few seconds, and its auction-detail route carries the NBT and enchantment data needed to rebuild the same variant keys as
 the normal book.
 
-For a new BIN the fast lane only fetches details when the tag is already in the cached book **and**
-the ask is at least **15%** and **400k** below the cheapest cached listing for that tag. That is the
-shape of an obvious undercut; the earlier rule (anywhere within 1.35× of the cheapest) queued 4.6
-candidates a second against a 0.67/s detail budget, so 85% aged out before they were ever resolved
-and the real ones waited behind them. Two drain threads work the backlog, and entries older than
+For a new BIN the fast lane only fetches details when the tag is already in the cached book **and**
+the ask is low enough that selling it at the cheapest cached listing for that tag would still clear
+`minProfit` and `minMarginPct`. The limit is computed per tag, not hardcoded: the exit is
+`Tax.ahNet(cheapest)` and the maximum ask is the lower of `exit - minProfit` and
+`exit / (1 + minMarginPct/100)`. Raising `/discordia margin` or `/discordia minprofit` therefore
+tightens the lane immediately, and lowering them widens it. The earlier rule (anywhere within 1.35×
+of the cheapest) queued 4.6 candidates a second against a 0.67/s detail budget, so 85% aged out
+before they were ever resolved and the real ones waited behind them. Two drain threads work the backlog, and entries older than
 **20s** are dropped: a listing that has waited that long is usually already sold.
 
 The feed polls, auction-detail requests, and global-sales lookups share one Cofl rate budget

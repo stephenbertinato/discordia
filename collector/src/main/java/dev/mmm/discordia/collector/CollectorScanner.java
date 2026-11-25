@@ -82,7 +82,7 @@ public final class CollectorScanner {
         running = true;
         globalSales.start();
         if (config.fastAuctions) {
-            fastFeed = new FastAuctionFeed(() -> lastReference, this::onFastListing);
+            fastFeed = new FastAuctionFeed(() -> lastReference, this::onFastListing, config);
             fastFeed.start();
         }
         thread = new Thread(this::loop, "collector-market");

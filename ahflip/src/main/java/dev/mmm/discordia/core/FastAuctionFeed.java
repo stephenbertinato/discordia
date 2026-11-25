@@ -48,14 +48,7 @@ public final class FastAuctionFeed {
      * paces it to the published budget (55/min), so this is a floor, not a promise.
      */
     private static final long POLL_MS = 500L;
-    /**
-     * A candidate must undercut the cheapest existing copy of its tag by a real margin, not just
-     * sit near it. At 1.35 the lane queued 4.6 candidates a second against a 0.67/s detail budget,
-     * so most were dropped stale and the live ones waited behind junk.
-     */
-    private static final double MAX_PRICE_RATIO = 0.95d;
-    /** Below this absolute gap there is no flip to resolve, whatever the percentage says. */
-    private static final double MIN_EDGE = 400_000d;
+    /** The undercut limit is derived from the live config; see {@link #maxCandidatePrice(double)}. */
     private static final int MAX_SEEN = 4_000;
     /** Beyond this a candidate is almost certainly sold; resolving it only delays live ones. */
     private static final long STALE_MS = 20_000L;
@@ -83,6 +76,7 @@ public final class FastAuctionFeed {
 
     private final Supplier<MarketSnapshot> reference;
     private final Consumer<MarketSnapshot.Listing> sink;
+    private final FlipConfig config;
     private final Set<String> seen = ConcurrentHashMap.newKeySet();
     private final Deque<String> seenOrder = new ArrayDeque<>();
     private final Object queueLock = new Object();
@@ -110,9 +104,30 @@ public final class FastAuctionFeed {
     private MarketSnapshot indexedReference;
 
     public FastAuctionFeed(Supplier<MarketSnapshot> reference,
-                           Consumer<MarketSnapshot.Listing> sink) {
+                           Consumer<MarketSnapshot.Listing> sink,
+                           FlipConfig config) {
         this.reference = reference;
         this.sink = sink;
+        this.config = config == null ? new FlipConfig() : config;
+    }
+
+    /**
+     * The most a listing can cost and still be worth a detail lookup.
+     *
+     * <p>The cheapest existing copy of the tag is the conservative exit: the candidate has to
+     * undercut it, sell after AH fees, and still clear both the profit floor and the percentage
+     * floor. Deriving the limit this way keeps the fast lane in step with whatever the user set
+     * with {@code /discordia minprofit} and {@code /discordia margin} instead of a hardcoded
+     * percentage.
+     */
+    private double maxCandidatePrice(double lowest) {
+        if (lowest <= 0d) {
+            return 0d;
+        }
+        double exit = Tax.ahNet(lowest);
+        double byProfit = exit - Math.max(0d, config.minProfit);
+        double byMargin = exit / (1d + Math.max(0d, config.minMarginPct) / 100d);
+        return Math.min(byProfit, byMargin);
     }
 
     public synchronized void start() {
@@ -257,8 +272,7 @@ public final class FastAuctionFeed {
                 continue;
             }
             double price = number(item, "startingBid", 0d);
-            double edge = tagBook.lowest() - price;
-            if (price <= 0d || price > tagBook.lowest() * MAX_PRICE_RATIO || edge < MIN_EDGE) {
+            if (price <= 0d || price > maxCandidatePrice(tagBook.lowest())) {
                 remember(uuid);
                 continue;
             }
